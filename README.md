@@ -1,7 +1,6 @@
 # Rust-Raycaster
-Second try to do a raycaster in Rust this time
 
-Using sdl2 for rust : https://docs.rs/sdl2/latest/sdl2/
+This project use Rust and sdl2 for rust : https://docs.rs/sdl2/latest/sdl2/
 
 Maps are in txt format
 
@@ -29,10 +28,10 @@ for example lines jumps are represented as '$'
 ```
  Correct:         Incorrect: 
 
- ####  $           ####$
- #   P $           #    P$
- #     $           #$
- ##   #$           ##    #$
- #E   #$           #E    #$
- ######$           #######$
+ ####   $           ####$
+ #    P $           #    P$
+ #      $           #$
+ ##    #$           ##    #$
+ #E    #$           #E    #$
+ #######$           #######$
 ```
