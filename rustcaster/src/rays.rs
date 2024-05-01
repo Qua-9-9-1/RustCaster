@@ -45,8 +45,8 @@ fn draw_single_ray(_game_t: &mut Game, _player: &Player, angle_temp: f64, ray_nb
             }
         }
     }
-    _game_t.canvas.set_draw_color(Color::RGB(255, 255, 0));
-    _game_t.canvas.draw_line(Point::new(center_x, center_y), Point::new(hit_x - _player.pos.x as i32 + center_x, hit_y - _player.pos.y as i32 + center_y)).unwrap();
+    // _game_t.canvas.set_draw_color(Color::RGB(255, 255, 0));
+    // _game_t.canvas.draw_line(Point::new(center_x, center_y), Point::new(hit_x - _player.pos.x as i32 + center_x, hit_y - _player.pos.y as i32 + center_y)).unwrap();
 }
 
 pub fn draw_rays(game_t: &mut Game, player: &Player)
@@ -59,6 +59,5 @@ pub fn draw_rays(game_t: &mut Game, player: &Player)
     for ray in 0..rays_nb {
         draw_single_ray(game_t_copy, player_copy, ray_angle, ray);
         ray_angle += player.fov as f64 * (std::f64::consts::PI / 180.0) / rays_nb as f64;
-        println!("ray_angle: {}", ray_angle);
     }
 }

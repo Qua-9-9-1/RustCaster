@@ -25,23 +25,22 @@ use sdl2::pixels::Color;
 pub fn draw_wall(game_t: &mut Game, player: &Player, hit_x: i32, hit_y: i32, ray_nb: i32, angle_temp: f64)
 {
     let distance = f64::sqrt(f64::powi(hit_x as f64 - player.pos.x, 2) + f64::powi(hit_y as f64 - player.pos.y, 2));
-    let vision_coefficient = f64::cos((angle_temp - player.angle)); //> 0 as f64 { f64::cos(angle_temp - player.angle) } else { f64::cos(angle_temp - player.angle) * -1.0 };
-    let wall_height = (((RAYS_LENGTH as f64 / distance) * 100.0)) as i32 / 2;
-    let wall_start = (SCREEN_HEIGHT / 2) - (wall_height / 2) + 40;
-    let wall_end = (((SCREEN_HEIGHT / 2) + (wall_height / 2)) + 40) as u32;
+    let vision_coefficient = f64::cos(player.angle - angle_temp);
+    let wall_height = (((RAYS_LENGTH as f64 / (vision_coefficient * distance)) * 100.0)) / 2.0;
+    let wall_start = (SCREEN_HEIGHT / 2) - (wall_height.round() as i32 / 2) + 40;
     let ray_on_screen = ray_nb * (SCREEN_WIDTH / RAYS_NB) + 300;
-    let wall_rect = sdl2::rect::Rect::new(ray_on_screen, wall_start, (SCREEN_WIDTH / RAYS_NB) as u32, wall_height as u32);
-    let mut map_hit_x = (hit_x / BLOCK_SIZE) as usize;
-    let mut map_hit_y = (hit_y / BLOCK_SIZE) as usize;
+    let wall_rect = sdl2::rect::Rect::new(ray_on_screen, wall_start, (SCREEN_WIDTH / RAYS_NB) as u32, wall_height.round() as u32);
+    let map_hit_x = (hit_x / BLOCK_SIZE) as usize;
+    let map_hit_y = (hit_y / BLOCK_SIZE) as usize;
 
-    println!("hit_x: {}, hit_y: {} distance: {} ray {}, wall height {}, vision coef {}", hit_x, hit_y, distance, ray_nb, wall_height, vision_coefficient);
     if game_t.environnement.outside == true {
-        if (map_hit_x == 0 || map_hit_x == game_t.map_width - 1) || (map_hit_y == 0 || map_hit_y == game_t.map_height - 1)
-            { game_t.canvas.set_draw_color(game_t.environnement.sky_color); }
+        if (game_t.ascii_map[map_hit_y + 1][map_hit_x] == '#' ||
+            game_t.ascii_map[map_hit_y - 1][map_hit_x] == '#') &&
+            (game_t.ascii_map[map_hit_y][map_hit_x + 1] == '#' ||
+            game_t.ascii_map[map_hit_y][map_hit_x - 1] == '#')
+            { game_t.canvas.set_draw_color(darker_color(game_t.environnement.walls_color, 2)); }
         else
             { game_t.canvas.set_draw_color(game_t.environnement.walls_color); }
-
-        game_t.canvas.set_draw_color(game_t.environnement.walls_color);
         if game_t.environnement.fog == true
             { game_t.canvas.set_draw_color(merge_colors(game_t.environnement.sky_color, game_t.environnement.walls_color, distance * FOG_INTENSITY as f64)); }
     } else {

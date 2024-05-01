@@ -8,16 +8,23 @@
 //                                                                                                     d"     YD  
 //                                                                                                     "Y88888P'  
 
-macro_rules! define_const {
-    ($name:ident, $value:expr) => {
-        pub const $name: i32 = $value;
-    };
-}
+extern crate sdl2;
 
-define_const!(BLOCK_SIZE, 32);
-define_const!(PLAYER_SIZE, 10);
-define_const!(SCREEN_WIDTH, 1600);
-define_const!(SCREEN_HEIGHT, 1000);
-define_const!(RAYS_NB, 800);
-define_const!(RAYS_LENGTH, 500);
-define_const!(FOG_INTENSITY, 1 / 200);
+use crate::Game;
+
+fn load_ambiance(ambiance: String, game_t: &mut Game)
+{
+    game_t.environnement: Environnement {
+        //renderer: &_renderer,
+        sky_color: Color::RGB(38, 98, 199),
+        floor_color: Color::RGB(0, 130, 71),
+        walls_color: Color::RGB(255, 255, 255),
+        grid_color: Color::RGB(255, 255, 255),
+        clouds_color: Color::RGB(255, 255, 255),
+        sun_color: Color::RGB(255, 255, 255),
+        outside: true,
+        fog: false,
+        //wall_texture: sdl2::image::LoadTexture::from_file("assets/wall_texture.png").unwrap(),
+    }
+
+}

@@ -122,18 +122,6 @@ fn init_game() -> Game
         screen: sdl2::rect::Rect::new(300, 40, SCREEN_WIDTH as u32, SCREEN_HEIGHT as u32),
         board: sdl2::rect::Rect::new(10, 320, 280, 720),
         ascii_map: Vec::new(),
-        environnement: Environnement {
-            //renderer: &_renderer,
-            sky_color: Color::RGB(38, 98, 199),
-            floor_color: Color::RGB(0, 130, 71),
-            walls_color: Color::RGB(109, 106, 108),
-            grid_color: Color::RGB(255, 255, 255),
-            clouds_color: Color::RGB(255, 255, 255),
-            sun_color: Color::RGB(255, 255, 255),
-            outside: true,
-            fog: false,
-            //wall_texture: sdl2::image::LoadTexture::from_file("assets/wall_texture.png").unwrap(),
-        },
     }
 }
 
@@ -159,6 +147,7 @@ fn main()
     load_map(av[1].clone(), &mut player, &mut game_t);
     // loop {
 //        game_menu(&mut player, &mut game_t);
+        load_ambiance("house", &mut game_t);
         game_loop(&mut player, &mut game_t);
     // }
     process::exit(0);
