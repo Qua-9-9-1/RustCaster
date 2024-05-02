@@ -17,47 +17,57 @@ use crate::draw_rays;
 use crate::rustcaster::BLOCK_SIZE;
 use crate::rustcaster::PLAYER_SIZE;
 
-fn is_x_in_map(game_t: &Game, x: i32) -> bool
+pub fn is_x_in_map(game_t: &Game, x: i32) -> bool
 {
     if x < 0 || x >= game_t.map_width as i32
         { return false; }
     return true;
 }
 
-fn is_y_in_map(game_t: &Game, y: i32) -> bool
+pub fn is_y_in_map(game_t: &Game, y: i32) -> bool
 {
     if y < 0 || y >= game_t.map_height as i32
         { return false; }
     return true;
 }
 
-pub fn is_in_map(game_t: &Game, x: i32, y: i32, orientation: i32) -> bool
+pub fn is_in_map(game_t: &Game, x: i32, y: i32) -> bool
 {
-    if orientation == 0
-        { return is_x_in_map(game_t, x); }
-    else if orientation == 1
-        { return is_y_in_map(game_t, y); }
-    else
-        { return is_x_in_map(game_t, x) && is_y_in_map(game_t, y); }
+    return is_x_in_map(game_t, x) && is_y_in_map(game_t, y);
 }
 
-fn draw_minimap_walls(game_t: &mut Game, player: &Player, x: i32, y: i32)
+fn draw_minimap_zone(game_t: &mut Game, player: &Player, x: i32, y: i32)
 {
     let point_color;
-    let block_x_pos = x * BLOCK_SIZE - (player.pos.x) as i32 + game_t.map_zone.center().x;
-    let block_y_pos = y * BLOCK_SIZE - (player.pos.y) as i32 + game_t.map_zone.center().y;
+    let mut point_x_pos = x * BLOCK_SIZE - (player.pos.x) as i32 + game_t.map_zone.center().x;
+    let mut point_y_pos = y * BLOCK_SIZE - (player.pos.y) as i32 + game_t.map_zone.center().y;
+    let mut point_size = BLOCK_SIZE as u32;
+    let c;
 
-    if x < 0 || y < 0 || x >= game_t.map_width as i32 || y >= game_t.map_height as i32
-        { return; }
-    let c = game_t.ascii_map[y as usize][x as usize];
-    if c == '#' || c == 'X' || c == 'E' {
-        if c == '#'
-            { point_color = game_t.environnement.walls_color; }
-        else if c == 'X'
-            { point_color = game_t.environnement.grid_color; }
-        else
-            { point_color = Color::RGB(0, 255, 0); }
-        let rect = sdl2::rect::Rect::new(block_x_pos, block_y_pos, BLOCK_SIZE as u32, BLOCK_SIZE as u32);
+    if !is_in_map(game_t, x, y) {
+        c = '#'
+    } else {
+        c = game_t.ascii_map[y as usize][x as usize];
+    }
+    match c {
+        '#' => point_color = game_t.environnement.walls_color,
+        'X' => point_color = game_t.environnement.grid_color,
+        '0' => {
+            point_color = Color::RGB(255, 235, 0);
+            point_size /= 2;
+            point_x_pos += BLOCK_SIZE / 4;
+            point_y_pos += BLOCK_SIZE / 4;
+        },
+        'E' => {
+            point_color = Color::RGB(0, 255, 0);
+            point_size /= 2;
+            point_x_pos += BLOCK_SIZE / 4;
+            point_y_pos += BLOCK_SIZE / 4;
+        },
+        _ => point_color = Color::RGB(0, 0, 0),
+    }
+    if c != ' ' {
+        let rect = sdl2::rect::Rect::new(point_x_pos, point_y_pos, point_size, point_size);
         let intersection = rect.intersection(game_t.map_zone);
         if intersection.is_some() {
             game_t.canvas.set_draw_color(point_color);
@@ -75,10 +85,10 @@ pub fn draw_minimap(game_t: &mut Game, player: &Player)
 
     for y in start_y..= end_y {
         for x in start_x..= end_x {
-            draw_minimap_walls(game_t, player, x, y);
+            draw_minimap_zone(game_t, player, x, y);
         }
     }
     draw_rays(game_t, player);
-    game_t.canvas.set_draw_color(Color::RGB(255, 0, 0));
+    game_t.canvas.set_draw_color(Color::RGB(0, 0, 255));
     draw_filled_circle(&mut game_t.canvas, game_t.map_zone.center().x, game_t.map_zone.center().y, PLAYER_SIZE);
 }

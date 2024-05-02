@@ -90,17 +90,22 @@ pub fn load_map(filepath: String, player: &mut Player, game_t: &mut Game)
     game_t.map_height = map.lines().count();
     game_t.ascii_map = vec![vec![' '; game_t.map_width]; game_t.map_height];
     fill_map(&mut game_t.ascii_map, &map, game_t.map_width, game_t.map_height);
+    game_t.environnement.max_coins = 0;
     for c in map.chars() {
-        if c == 'P' {
-            player.pos.x = x as f64 * (BLOCK_SIZE + BLOCK_SIZE / 2) as f64;
-            player.pos.y = y as f64 * (BLOCK_SIZE + BLOCK_SIZE / 2) as f64;
-            break;
-        } else if c == '\n' {
-            x = 0;
-            y += 1;
-        } else {
-            game_t.ascii_map[y][x] = c;
-            x += 1;
+        match c {
+            'P' => {
+                player.pos.x = (x as f64 * BLOCK_SIZE as f64) + (BLOCK_SIZE / 2) as f64;
+                player.pos.y = (y as f64 * BLOCK_SIZE as f64) + (BLOCK_SIZE / 2) as f64;
+            },
+            '\n' => {
+                x = -1;
+                y += 1;    
+            },
+            '0' => game_t.environnement.max_coins += 1,
+            _ => (),
         }
+        x += 1;    
     }
+    player.coins = 0;
+    player.angle = 0.0;
 }

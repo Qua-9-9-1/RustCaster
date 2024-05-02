@@ -8,16 +8,19 @@
 //                                                                                                     d"     YD  
 //                                                                                                     "Y88888P'  
 
-macro_rules! define_const {
-    ($name:ident, $value:expr) => {
-        pub const $name: i32 = $value;
-    };
+use crate::Player;
+use crate::Game;
+use crate::rustcaster::BLOCK_SIZE;
+
+use std::time::Duration;
+
+pub fn game_menu(player: &mut Player, game_t: &mut Game) {
+    ::std::thread::sleep(Duration::new(0, 0));
 }
 
-define_const!(BLOCK_SIZE, 32);
-define_const!(PLAYER_SIZE, 10);
-define_const!(SCREEN_WIDTH, 1600);
-define_const!(SCREEN_HEIGHT, 1000);
-define_const!(RAYS_NB, 160);
-define_const!(RAYS_LENGTH, 1000);
-define_const!(FOG_INTENSITY, 1 / 200);
+pub fn end_screen(player: &mut Player, game_t: &mut Game) {
+    // if game_t.ascii_map[(player.pos.y as i32 / BLOCK_SIZE) as usize][(player.pos.x as i32 / BLOCK_SIZE) as usize] != 'E'
+    //     {return;}
+        game_t.canvas.present();
+    ::std::thread::sleep(Duration::new(2, 0));
+}

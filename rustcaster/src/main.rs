@@ -8,6 +8,7 @@
 //                                                                                                     d"     YD  
 //                                                                                                     "Y88888P'  
 
+mod game_menu;
 mod game_loop;
 mod load_map;
 mod minimap;
@@ -15,17 +16,27 @@ mod graphic_tools;
 mod rays;
 mod rustcaster;
 mod walls;
+mod items;
+mod ambiances;
 
-use walls::draw_wall;
-use walls::draw_grid;
-use rays::draw_rays;
+use game_menu::game_menu;
+use game_menu::end_screen;
+use game_loop::game_loop;
+use load_map::load_map;
+use ambiances::load_ambiance;
 use graphic_tools::draw_filled_circle;
 use graphic_tools::darker_color;
 use graphic_tools::merge_colors;
 use minimap::draw_minimap;
 use minimap::is_in_map;
-use game_loop::game_loop;
-use load_map::load_map;
+use minimap::is_x_in_map;
+use minimap::is_y_in_map;
+use rays::draw_rays;
+use walls::draw_wall;
+use items::draw_coin;
+use items::draw_monster;
+use items::draw_end;
+use walls::draw_grid;
 use rustcaster::SCREEN_WIDTH;
 use rustcaster::SCREEN_HEIGHT;
 
@@ -46,10 +57,13 @@ pub struct Player {
     sensibility: f64,
     speed: f64,
     angle: f64,
+    coins: i32,
 }
 
 pub struct Environnement  {
     // renderer: &'a sdl2::render::TextureCreator<sdl2::video::WindowContext>,
+    name: String,
+    max_coins: i32,
     sky_color: Color,
     floor_color: Color,
     walls_color: Color,
@@ -122,6 +136,20 @@ fn init_game() -> Game
         screen: sdl2::rect::Rect::new(300, 40, SCREEN_WIDTH as u32, SCREEN_HEIGHT as u32),
         board: sdl2::rect::Rect::new(10, 320, 280, 720),
         ascii_map: Vec::new(),
+        environnement: Environnement {
+            //renderer: &_renderer,
+            name: String::from("cave"),
+            max_coins: 0,
+            sky_color: Color::RGB(255, 255, 255),
+            floor_color: Color::RGB(0, 0, 0),
+            walls_color: Color::RGB(255, 255, 255),
+            grid_color: Color::RGB(255, 255, 255),
+            clouds_color: Color::RGB(0, 0, 0),
+            sun_color: Color::RGB(0, 0, 0),
+            outside: false,
+            fog: false,
+            //wall_texture: sdl2::image::LoadTexture::from_file("assets/wall_texture.png").unwrap(),
+        },
     }
 }
 
@@ -135,6 +163,7 @@ fn main()
         sensibility: 4.0,
         speed: 3.0,
         angle: 0.0,
+        coins: 0,
     };
     let mut game_t: Game = init_game();
 
@@ -144,11 +173,12 @@ fn main()
     }
     if error_check(av[1].clone(), ac) == false
         { process::exit(1); }
-    load_map(av[1].clone(), &mut player, &mut game_t);
-    // loop {
-//        game_menu(&mut player, &mut game_t);
-        load_ambiance("house", &mut game_t);
+    loop {
+        game_menu(&mut player, &mut game_t);
+        load_ambiance(&mut game_t);
+        load_map(av[1].clone(), &mut player, &mut game_t);
         game_loop(&mut player, &mut game_t);
-    // }
+        end_screen(&mut player, &mut game_t);
+    }
     process::exit(0);
 }

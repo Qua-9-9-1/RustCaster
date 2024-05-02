@@ -11,20 +11,52 @@
 extern crate sdl2;
 
 use crate::Game;
+use crate::Color;
 
-fn load_ambiance(ambiance: String, game_t: &mut Game)
+pub fn load_ambiance(game_t: &mut Game)
 {
-    game_t.environnement: Environnement {
-        //renderer: &_renderer,
-        sky_color: Color::RGB(38, 98, 199),
-        floor_color: Color::RGB(0, 130, 71),
-        walls_color: Color::RGB(255, 255, 255),
-        grid_color: Color::RGB(255, 255, 255),
-        clouds_color: Color::RGB(255, 255, 255),
-        sun_color: Color::RGB(255, 255, 255),
-        outside: true,
-        fog: false,
-        //wall_texture: sdl2::image::LoadTexture::from_file("assets/wall_texture.png").unwrap(),
-    }
+    let ambiance = &game_t.environnement.name as &str;
+    match ambiance {
+        "house" => {
+            game_t.environnement.sky_color = Color::RGB(38, 98, 199);
+            game_t.environnement.clouds_color = Color::RGB(255, 255, 255);
+            game_t.environnement.sun_color = Color::RGB(255, 255, 255);
+            game_t.environnement.floor_color = Color::RGB(0, 0, 0);
+            game_t.environnement.walls_color = Color::RGB(100, 100, 100)
+        },
+        "garden" => {
+            game_t.environnement.sky_color = Color::RGB(135, 206, 235);
+            game_t.environnement.clouds_color = Color::RGB(255, 255, 255);
+            game_t.environnement.sun_color = Color::RGB(255, 255, 255);
+        },
+        "halloween" => {
+            game_t.environnement.sky_color = Color::RGB(220, 170, 20);
+            game_t.environnement.clouds_color = Color::RGB(150, 140, 40);
+            game_t.environnement.sun_color = Color::RGB(255, 255, 255);
+        },
+        "night" => {
+            game_t.environnement.sky_color = Color::RGB(12, 20, 69);
+            game_t.environnement.clouds_color = Color::RGB(30, 30, 70);
+            game_t.environnement.sun_color = Color::RGB(220, 220, 50);
+        },
+        "nether" => game_t.environnement.sky_color = Color::RGB(172, 32, 32),
+        "retro" => game_t.environnement.sky_color = Color::RGB(0, 0, 0),
+        "snow" => game_t.environnement.sky_color = Color::RGB(240, 240, 240),
+        _ => (),
 
+    }
+    if ambiance == "garden" || ambiance == "halloween" || ambiance == "nether"
+    || ambiance == "night" || ambiance == "snow" || ambiance == "house" {
+        game_t.environnement.outside = true;
+    } else {
+        game_t.environnement.outside = false;
+        //load ceiling
+    }
+    if ambiance == "nether" || ambiance == "snow" || ambiance == "night" {
+        game_t.environnement.fog = true;
+    } else {
+        game_t.environnement.fog = false;
+    }
+    let stre = "/assets/".to_owned() + ambiance + "/coin.png";
+    //wall_texture: sdl2::image::LoadTexture::from_file("assets/wall_texture.png").unwrap(),
 }
