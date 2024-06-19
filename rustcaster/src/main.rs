@@ -8,7 +8,6 @@
 //                                                                                                     d"     YD  
 //                                                                                                     "Y88888P'  
 
-mod game_menu;
 mod game_loop;
 mod load_map;
 mod minimap;
@@ -19,8 +18,6 @@ mod walls;
 mod items;
 mod ambiances;
 
-use game_menu::game_menu;
-use game_menu::end_screen;
 use game_loop::game_loop;
 use load_map::load_map;
 use ambiances::load_ambiance;
@@ -138,7 +135,7 @@ fn init_game() -> Game
         ascii_map: Vec::new(),
         environnement: Environnement {
             //renderer: &_renderer,
-            name: String::from("cave"),
+            name: String::from("house"),
             max_coins: 0,
             sky_color: Color::RGB(255, 255, 255),
             floor_color: Color::RGB(0, 0, 0),
@@ -173,12 +170,8 @@ fn main()
     }
     if error_check(av[1].clone(), ac) == false
         { process::exit(1); }
-    loop {
-        game_menu(&mut player, &mut game_t);
-        load_ambiance(&mut game_t);
-        load_map(av[1].clone(), &mut player, &mut game_t);
-        game_loop(&mut player, &mut game_t);
-        end_screen(&mut player, &mut game_t);
-    }
+    load_ambiance(&mut game_t);
+    load_map(av[1].clone(), &mut player, &mut game_t);
+    game_loop(&mut player, &mut game_t);
     process::exit(0);
 }

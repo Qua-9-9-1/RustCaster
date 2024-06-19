@@ -41,8 +41,9 @@ pub fn draw_wall(game_t: &mut Game, player: &Player, hit_x: i32, hit_y: i32, ray
         //     { game_t.canvas.set_draw_color(darker_color(game_t.environnement.walls_color, 2)); }
         // else
             { game_t.canvas.set_draw_color(game_t.environnement.walls_color); }
-        if game_t.environnement.fog == true
-            { game_t.canvas.set_draw_color(merge_colors(game_t.environnement.sky_color, game_t.environnement.walls_color, distance * FOG_INTENSITY as f64)); }
+        if game_t.environnement.fog == true {
+            game_t.canvas.set_draw_color(merge_colors(game_t.environnement.sky_color, game_t.environnement.walls_color, (distance / FOG_INTENSITY as f64)));
+        }
     } else {
         game_t.canvas.set_draw_color(darker_color(game_t.environnement.walls_color, (distance / 17.5) as i32));
     }
@@ -62,4 +63,3 @@ pub fn draw_grid(game_t: &mut Game, player: &Player, hit_x: i32, hit_y: i32, ray
     game_t.canvas.set_draw_color(game_t.environnement.grid_color);
     game_t.canvas.fill_rect(wall_rect).unwrap();
 }
-

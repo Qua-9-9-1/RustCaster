@@ -26,42 +26,47 @@ use sdl2::rect::Point;
 use std::f64;
 
 //draw items on screen walls (1), items (2), grids (3)
+// Ajout d'une constante pour définir l'intervalle de vérification
+const COLLISION_CHECK_INTERVAL: i32 = 1;
 
 fn draw_single_ray(_game_t: &mut Game, _player: &Player, angle_temp: f64, ray_nb: i32) {
-
-    let mut d_detect: i32 = 0;
     let mut hit_x: i32 = 0;
     let mut hit_y: i32 = 0;
     let center_x: i32 = _game_t.map_zone.center().x;
     let center_y: i32 = _game_t.map_zone.center().y;
-    let mut distance: f64;
+    let mut d_detect: i32 = 0;
 
     while d_detect < RAYS_LENGTH {
         d_detect += 1;
-        hit_x = (_player.pos.x + angle_temp.cos() * d_detect as f64) as i32;
-        hit_y = (_player.pos.y + angle_temp.sin() * d_detect as f64) as i32;
-        if is_in_map(_game_t, hit_x / BLOCK_SIZE, hit_y / BLOCK_SIZE) && (hit_x >= 0 && hit_y >= 0) {
-            if _game_t.ascii_map[(hit_y / BLOCK_SIZE) as usize][(hit_x / BLOCK_SIZE) as usize] == '#' {
+        if d_detect % COLLISION_CHECK_INTERVAL == 0 || d_detect == RAYS_LENGTH {
+            hit_x = (_player.pos.x + angle_temp.cos() * d_detect as f64) as i32;
+            hit_y = (_player.pos.y + angle_temp.sin() * d_detect as f64) as i32;
+            if is_in_map(_game_t, hit_x / BLOCK_SIZE, hit_y / BLOCK_SIZE) && (hit_x >= 0 && hit_y >= 0) {
+                let tile = _game_t.ascii_map[(hit_y / BLOCK_SIZE) as usize][(hit_x / BLOCK_SIZE) as usize];
+                match tile {
+                    '#' => {
+                        draw_wall(_game_t, _player, hit_x, hit_y, ray_nb, angle_temp);
+                        break;
+                    },
+                    'X' => draw_grid(_game_t, _player, hit_x, hit_y, ray_nb, angle_temp),
+                    '0' => {
+                        draw_coin(_game_t, _player, hit_x, hit_y, ray_nb, angle_temp);
+                        break;
+                    },
+                    'E' => {  
+                        draw_end(_game_t, _player, hit_x, hit_y, ray_nb, angle_temp);
+                        break;
+                    },
+                    _ => (),
+                }
+            } else {
                 draw_wall(_game_t, _player, hit_x, hit_y, ray_nb, angle_temp);
                 break;
             }
-            if _game_t.ascii_map[(hit_y / BLOCK_SIZE) as usize][(hit_x / BLOCK_SIZE) as usize] == 'X' {
-                draw_grid(_game_t, _player, hit_x, hit_y, ray_nb, angle_temp);
-            }            
-            match _game_t.ascii_map[(hit_y / BLOCK_SIZE) as usize][(hit_x / BLOCK_SIZE) as usize] {
-                // '0' => draw_coin(_game_t, _player, hit_x, hit_y, ray_nb, angle_temp),
-                // 'M' => draw_monster(_game_t, _player, hit_x, hit_y, ray_nb, angle_temp),
-                // 'E' => draw_end(_game_t, _player, hit_x, hit_y, ray_nb, angle_temp),
-                _ => (),
-            }
-        } else {
-            draw_wall(_game_t, _player, hit_x, hit_y, ray_nb, angle_temp);
-            break;
         }
     }
-
-    // _game_t.canvas.set_draw_color(Color::RGB(0, 255, 255));
-    // _game_t.canvas.draw_line(Point::new(center_x, center_y), Point::new(hit_x - _player.pos.x as i32 + center_x, hit_y - _player.pos.y as i32 + center_y)).unwrap();
+    _game_t.canvas.set_draw_color(Color::RGB(0, 255, 255));
+    _game_t.canvas.draw_line(Point::new(center_x, center_y), Point::new(hit_x - _player.pos.x as i32 + center_x, hit_y - _player.pos.y as i32 + center_y)).unwrap();
 }
 
 pub fn draw_rays(game_t: &mut Game, player: &Player) {

@@ -30,22 +30,17 @@ pub fn draw_coin(game_t: &mut Game, player: &Player, hit_x: i32, hit_y: i32, ray
     let wall_start = (SCREEN_HEIGHT / 2) - (wall_height.round() as i32 / 2) + 40;
     let ray_on_screen = ray_nb * (SCREEN_WIDTH / RAYS_NB) + 300;
     let wall_rect = sdl2::rect::Rect::new(ray_on_screen, wall_start, (SCREEN_WIDTH / RAYS_NB) as u32, wall_height.round() as u32);
-    let map_hit_x = (hit_x / BLOCK_SIZE) as usize;
-    let map_hit_y = (hit_y / BLOCK_SIZE) as usize;
-
+    let coin_color = Color::RGB(255, 215, 0);
+    
     if game_t.environnement.outside == true {
-        // if (game_t.ascii_map[map_hit_y + 1][map_hit_x] == '#' ||
-        //     game_t.ascii_map[map_hit_y - 1][map_hit_x] == '#') &&
-        //     (game_t.ascii_map[map_hit_y][map_hit_x + 1] == '#' ||
-        //     game_t.ascii_map[map_hit_y][map_hit_x - 1] == '#')
-        //     { game_t.canvas.set_draw_color(darker_color(game_t.environnement.walls_color, 2)); }
-        // else
-            { game_t.canvas.set_draw_color(game_t.environnement.walls_color); }
-        if game_t.environnement.fog == true
-            { game_t.canvas.set_draw_color(merge_colors(game_t.environnement.sky_color, game_t.environnement.walls_color, distance * FOG_INTENSITY as f64)); }
+        game_t.canvas.set_draw_color(coin_color);
+        if game_t.environnement.fog == true {
+            game_t.canvas.set_draw_color(merge_colors(game_t.environnement.sky_color, coin_color, (distance / FOG_INTENSITY as f64)));
+        }
     } else {
-        game_t.canvas.set_draw_color(darker_color(game_t.environnement.walls_color, (distance / 17.5) as i32));
+        game_t.canvas.set_draw_color(darker_color(coin_color, (distance / 17.5) as i32));
     }
+    game_t.canvas.set_draw_color(coin_color);
     game_t.canvas.fill_rect(wall_rect).unwrap();
 }
 
@@ -84,22 +79,17 @@ pub fn draw_end(game_t: &mut Game, player: &Player, hit_x: i32, hit_y: i32, ray_
     let wall_start = (SCREEN_HEIGHT / 2) - (wall_height.round() as i32 / 2) + 40;
     let ray_on_screen = ray_nb * (SCREEN_WIDTH / RAYS_NB) + 300;
     let wall_rect = sdl2::rect::Rect::new(ray_on_screen, wall_start, (SCREEN_WIDTH / RAYS_NB) as u32, wall_height.round() as u32);
-    let map_hit_x = (hit_x / BLOCK_SIZE) as usize;
-    let map_hit_y = (hit_y / BLOCK_SIZE) as usize;
-
+    let end_color = Color::RGB(0, 255, 0);
+    
     if game_t.environnement.outside == true {
-        // if (game_t.ascii_map[map_hit_y + 1][map_hit_x] == '#' ||
-        //     game_t.ascii_map[map_hit_y - 1][map_hit_x] == '#') &&
-        //     (game_t.ascii_map[map_hit_y][map_hit_x + 1] == '#' ||
-        //     game_t.ascii_map[map_hit_y][map_hit_x - 1] == '#')
-        //     { game_t.canvas.set_draw_color(darker_color(game_t.environnement.walls_color, 2)); }
-        // else
-            { game_t.canvas.set_draw_color(game_t.environnement.walls_color); }
-        if game_t.environnement.fog == true
-            { game_t.canvas.set_draw_color(merge_colors(game_t.environnement.sky_color, game_t.environnement.walls_color, distance * FOG_INTENSITY as f64)); }
+        game_t.canvas.set_draw_color(end_color);
+        if game_t.environnement.fog == true {
+            game_t.canvas.set_draw_color(merge_colors(game_t.environnement.sky_color, end_color, (distance / FOG_INTENSITY as f64)));
+        }
     } else {
-        game_t.canvas.set_draw_color(darker_color(game_t.environnement.walls_color, (distance / 17.5) as i32));
+        game_t.canvas.set_draw_color(darker_color(end_color, (distance / 17.5) as i32));
     }
+    game_t.canvas.set_draw_color(end_color);
     game_t.canvas.fill_rect(wall_rect).unwrap();
 }
-
+    

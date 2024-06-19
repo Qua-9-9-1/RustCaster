@@ -20,6 +20,7 @@ use crate::rustcaster::SCREEN_WIDTH;
 use crate::graphic_tools::draw_filled_circle;
 use crate::is_x_in_map;
 use crate::is_y_in_map;
+use crate::load_ambiance;
 
 use std::time::Duration;
 use std::process;
@@ -98,6 +99,39 @@ fn controls(player: &mut Player, game_t: &mut Game) {
             player.sensibility -= 0.1;
         }
     }
+    if keyboard_state.is_scancode_pressed(Scancode::Kp0) {
+        std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 10));
+        game_t.environnement.name = String::from("house");
+    }
+    if keyboard_state.is_scancode_pressed(Scancode::Kp1) {
+        std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 10));
+        game_t.environnement.name = String::from("cave");
+    }
+    if keyboard_state.is_scancode_pressed(Scancode::Kp2) {
+        std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 10));
+        game_t.environnement.name = String::from("garden");
+    }
+    if keyboard_state.is_scancode_pressed(Scancode::Kp3) {
+        std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 10));
+        game_t.environnement.name = String::from("halloween");
+    }
+    if keyboard_state.is_scancode_pressed(Scancode::Kp4) {
+        std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 10));
+        game_t.environnement.name = String::from("night");
+    }
+    if keyboard_state.is_scancode_pressed(Scancode::Kp5) {
+        std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 10));
+        game_t.environnement.name = String::from("nether");
+    }
+    if keyboard_state.is_scancode_pressed(Scancode::Kp6) {
+        std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 10));
+        game_t.environnement.name = String::from("retro");
+    }
+    if keyboard_state.is_scancode_pressed(Scancode::Kp7) {
+        std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 10));
+        game_t.environnement.name = String::from("snow");
+    }
+    load_ambiance(game_t);
 }
 
 pub fn game_loop(player: &mut Player, game_t: &mut Game) {

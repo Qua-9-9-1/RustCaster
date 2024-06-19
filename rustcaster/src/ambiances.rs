@@ -21,27 +21,54 @@ pub fn load_ambiance(game_t: &mut Game)
             game_t.environnement.sky_color = Color::RGB(38, 98, 199);
             game_t.environnement.clouds_color = Color::RGB(255, 255, 255);
             game_t.environnement.sun_color = Color::RGB(255, 255, 255);
-            game_t.environnement.floor_color = Color::RGB(0, 0, 0);
+            game_t.environnement.floor_color = Color::RGB(0, 130, 71);
             game_t.environnement.walls_color = Color::RGB(100, 100, 100)
+        },
+        "cave" => {
+            game_t.environnement.sky_color = Color::RGB(100, 100, 100);
+            game_t.environnement.floor_color = Color::RGB(100, 100, 100);
+            game_t.environnement.walls_color = Color::RGB(50, 50, 50);
         },
         "garden" => {
             game_t.environnement.sky_color = Color::RGB(135, 206, 235);
+            game_t.environnement.floor_color = Color::RGB(20, 200, 71);
+            game_t.environnement.walls_color = Color::RGB(100, 116, 52);
             game_t.environnement.clouds_color = Color::RGB(255, 255, 255);
             game_t.environnement.sun_color = Color::RGB(255, 255, 255);
         },
         "halloween" => {
-            game_t.environnement.sky_color = Color::RGB(220, 170, 20);
+            game_t.environnement.sky_color = Color::RGB(170, 120, 20);
             game_t.environnement.clouds_color = Color::RGB(150, 140, 40);
-            game_t.environnement.sun_color = Color::RGB(255, 255, 255);
+            game_t.environnement.sun_color = Color::RGB(115, 65, 0);
+            game_t.environnement.floor_color = Color::RGB(20, 20, 28);
+            game_t.environnement.walls_color = Color::RGB(76, 44, 100);
         },
         "night" => {
             game_t.environnement.sky_color = Color::RGB(12, 20, 69);
             game_t.environnement.clouds_color = Color::RGB(30, 30, 70);
             game_t.environnement.sun_color = Color::RGB(220, 220, 50);
+            game_t.environnement.floor_color = Color::RGB(92, 60, 44);
+            game_t.environnement.walls_color = Color::RGB(47, 45, 7);
         },
-        "nether" => game_t.environnement.sky_color = Color::RGB(172, 32, 32),
-        "retro" => game_t.environnement.sky_color = Color::RGB(0, 0, 0),
-        "snow" => game_t.environnement.sky_color = Color::RGB(240, 240, 240),
+        "nether" => {
+            game_t.environnement.sky_color = Color::RGB(172, 32, 32);
+            game_t.environnement.floor_color = Color::RGB(48, 24, 28);
+            game_t.environnement.walls_color = Color::RGB(116, 52, 52);
+        }
+        "retro" => {
+            game_t.environnement.sky_color = Color::RGB(0, 0, 0);
+            game_t.environnement.floor_color = Color::RGB(0, 0, 0);
+            game_t.environnement.walls_color = Color::RGB(255, 255, 255);
+            game_t.environnement.clouds_color = Color::RGB(0, 0, 0);
+            game_t.environnement.sun_color = Color::RGB(0, 0, 0);
+        }
+        "snow" => {
+            game_t.environnement.sky_color = Color::RGB(240, 240, 240);
+            game_t.environnement.walls_color = Color::RGB(200, 200, 200);
+            game_t.environnement.floor_color = Color::RGB(255, 255, 255);
+            game_t.environnement.clouds_color = Color::RGB(255, 255, 255);
+            game_t.environnement.sun_color = Color::RGB(255, 255, 255);
+        }
         _ => (),
 
     }
@@ -57,6 +84,6 @@ pub fn load_ambiance(game_t: &mut Game)
     } else {
         game_t.environnement.fog = false;
     }
-    let stre = "/assets/".to_owned() + ambiance + "/coin.png";
+    //let stre = "/assets/".to_owned() + ambiance + "/coin.png";
     //wall_texture: sdl2::image::LoadTexture::from_file("assets/wall_texture.png").unwrap(),
 }

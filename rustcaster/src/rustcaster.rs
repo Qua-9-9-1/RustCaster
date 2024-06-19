@@ -20,4 +20,4 @@ define_const!(SCREEN_WIDTH, 1600);
 define_const!(SCREEN_HEIGHT, 1000);
 define_const!(RAYS_NB, 160);
 define_const!(RAYS_LENGTH, 1000);
-define_const!(FOG_INTENSITY, 1 / 200);
+define_const!(FOG_INTENSITY, 100);

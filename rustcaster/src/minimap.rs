@@ -64,7 +64,7 @@ fn draw_minimap_zone(game_t: &mut Game, player: &Player, x: i32, y: i32)
             point_x_pos += BLOCK_SIZE / 4;
             point_y_pos += BLOCK_SIZE / 4;
         },
-        _ => point_color = Color::RGB(0, 0, 0),
+        _ => point_color = game_t.environnement.floor_color,
     }
     if c != ' ' {
         let rect = sdl2::rect::Rect::new(point_x_pos, point_y_pos, point_size, point_size);

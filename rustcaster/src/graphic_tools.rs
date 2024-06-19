@@ -38,6 +38,7 @@ pub fn darker_color(color: sdl2::pixels::Color, coef: i32) -> sdl2::pixels::Colo
     sdl2::pixels::Color::RGB(r as u8, g as u8, b as u8)
 }
 
+
 pub fn merge_colors(color1: sdl2::pixels::Color, color2: sdl2::pixels::Color, coef: f64) -> sdl2::pixels::Color
 {
     let mut r = color1.r as f64 * coef + color2.r as f64 * (1.0 - coef);
