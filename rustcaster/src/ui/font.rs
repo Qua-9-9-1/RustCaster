@@ -142,9 +142,12 @@ pub fn draw_text(fb: &mut FrameBuffer, text: &str, x: i32, y: i32, scale: i32, c
     }
 }
 
-/// Text with a 1-pixel (times scale) dark shadow, readable over the 3D view.
+/// Text with a soft dark shadow (half a glyph pixel down-right), readable over
+/// the 3D view. The shadow fades with `color`'s alpha.
 pub fn draw_text_shadow(fb: &mut FrameBuffer, text: &str, x: i32, y: i32, scale: i32, color: Color) {
-    draw_text(fb, text, x + scale, y + scale, scale, Color::rgba(0, 0, 0, 200));
+    let d = (scale / 2).max(1);
+    let a = (160 * color.a as u32 / 255) as u8;
+    draw_text(fb, text, x + d, y + d, scale, Color::rgba(0, 0, 0, a));
     draw_text(fb, text, x, y, scale, color);
 }
 

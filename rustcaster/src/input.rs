@@ -52,6 +52,7 @@ pub struct Input {
     wheel: i32,
     text: String,
     quit: bool,
+    mouse_moved: bool,
 }
 
 impl Input {
@@ -68,6 +69,7 @@ impl Input {
         self.mouse_released = [false; 3];
         self.wheel = 0;
         self.text.clear();
+        self.mouse_moved = false;
 
         let sx = fb_size.0 as f64 / window_size.0.max(1) as f64;
         let sy = fb_size.1 as f64 / window_size.1.max(1) as f64;
@@ -89,6 +91,7 @@ impl Input {
                     let (fx, fy) = to_fb(x, y);
                     self.mouse_x = fx;
                     self.mouse_y = fy;
+                    self.mouse_moved = true;
                 }
                 Event::MouseButtonDown { mouse_btn, x, y, .. } => {
                     let (fx, fy) = to_fb(x, y);
@@ -165,5 +168,16 @@ impl Input {
     /// Text typed this frame (SDL text input, already layout/IME aware).
     pub fn text(&self) -> &str {
         &self.text
+    }
+
+    /// The mouse moved this frame (menus use it to let the pointer take the
+    /// keyboard focus only when it actually moves).
+    pub fn mouse_moved(&self) -> bool {
+        self.mouse_moved
+    }
+
+    /// Enter / keypad Enter / Space went down this frame (menu "activate").
+    pub fn confirm_pressed(&self) -> bool {
+        self.was_pressed(Scancode::Return) || self.was_pressed(Scancode::KpEnter) || self.was_pressed(Scancode::Space)
     }
 }

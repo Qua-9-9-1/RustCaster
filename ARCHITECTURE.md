@@ -43,8 +43,9 @@ double-clicked `target/.../rustcaster.exe` both work.
 
 ## App states
 
-`AppState::{Menu, Playing, Paused, PresetEditor}`. A screen's `update` returns a `Transition`
-(`None`, `To(AppState)`, `StartGame(PathBuf)`, `QuitToMenu`, `Quit`), applied by `App::apply`.
+`AppState::{Menu, LevelSelect, Settings, Playing, Paused, LevelComplete, PresetEditor}`. A screen's
+`update` returns a `Transition` (`None`, `To(AppState)`, `StartGame(PathBuf)`, `RestartGame`,
+`QuitToMenu`, `Quit`), applied by `App::apply`.
 `Playing` is handled in `app.rs` (`update_playing`, `render_world`); the others are structs in
 `screens/` with:
 
@@ -60,7 +61,7 @@ loaded `preset` in sync). Adding a screen: new `AppState` variant, a struct in `
 arms in `App::update` / `App::render`.
 
 The CLI argument (`rustcaster.exe maps/data.txt`) goes straight to `Playing`; without it the app starts
-in `Menu`. Reaching an exit returns to the menu with the score in `ctx.message`.
+in `Menu`. Reaching an exit opens `LevelComplete` (score, Next map / Replay / Menu).
 
 ## Core APIs
 
@@ -107,13 +108,38 @@ in `Menu`. Reaching an exit returns to the menu with the score in `ctx.message`.
 
 ### (b) Menus, UI, HUD (`screens/`, `ui/`)
 
-- `screens/menu.rs` is a stub: map buttons from `ctx.maps`, preset `<`/`>` (`ctx.cycle_preset`), preset editor,
-  quit. Replace freely (thumbnails, map preview from `Map::load`, preset preview with `blit_texture`).
-- `screens/pause.rs` is the in-game settings stub: FOV / sensitivity steppers (`Settings::adjust_fov`,
-  `adjust_sensitivity`, which clamp), preset, minimap toggle, main menu (`Transition::QuitToMenu`), quit.
-  The old keyboard hacks (U/J, I/K, numpad presets) were removed in favour of these.
-- `ui/hud.rs::draw_hud(fb, game, settings)` draws the coin counter under the minimap: extend it (timer
-  from `game.time`, crosshair, end-of-level screen instead of returning to the menu).
+Navigation (extra states `LevelSelect`, `Settings`, `LevelComplete`; extra transition `RestartGame`):
+
+```
+Menu (title) ──Play──> LevelSelect ──Start──> Playing <──Esc / HUD pause──> Paused
+  │  ├──Settings──> Settings                     │                          ├─ Settings page (same panel)
+  │  └──Create preset──> PresetEditor ──> Menu   │                          ├─ style < > (applies at once)
+  │                    (presets rescanned)       │                          └─ Restart / Main menu / Quit
+  └──Quit                                        └── exit reached ──> LevelComplete ──> Next map | Replay | Menu
+```
+
+- `ui/theme.rs`: the look. Palette constants (`ACCENT` gold, `TEXT*`, `BUTTON_*`, `PANEL_*`, `OVERLAY_DIM`),
+  `Metrics` (`metrics(fb_height)`: `s` text scale, `pad`, `gap`, `button_h`, `margin`, `small`), and primitives
+  `draw_background` (animated gradient + perspective grid), `draw_panel` (shadow, translucent fill, border),
+  `draw_titled_panel` / `titled_panel_content`, `draw_title` (big two-tone shadowed text), `draw_text_soft`,
+  `draw_message` (`ctx.message`, red for `Error...`, green otherwise), `fit_scale`, `ellipsize`.
+  Lay out in multiples of `m.s` so screens work at any framebuffer height; widths follow the aspect ratio.
+- `ui/widgets.rs`: `Button` (`.primary()`, `.selected(b)`, `.focused(b)`, `.icon(Icon)`, `.enabled(b)`; draws
+  normal / hover / pressed / disabled faces, shrinks its label to fit), `Focus` (Up/Down/Left/Right/Tab +
+  Enter/Space keyboard navigation over a button list, returns the activated index, clicks included),
+  `scrollbar` / `draw_scrollbar`, `Label`, `column`, `row`, `centered`. Old constants (`TEXT_COLOR`...) remain.
+- `ui/preview.rs`: `draw_preset_preview` (sky/ceiling, floor, wall, coin with the preset textures or colours),
+  `draw_palette`, `draw_coin_icon` (coin texture or drawn disc), `draw_map_thumbnail`.
+- Screens: `menu.rs` (title), `level_select.rs` (map list parsed with `Map::load` on enter: size, coins,
+  thumbnail; wheel / scrollbar / Up-Down; style carousel with Left-Right), `settings.rs` (`SettingsPanel`
+  component: FOV and turn speed sliders with -/+ through the clamped `Settings` setters, minimap toggle; and the
+  full-screen `SettingsScreen`), `pause.rs` (main page + settings page), `level_complete.rs` (`LevelResult`:
+  coins, time, score = 100/coin + 10/s under 2 min + 500 for all coins; next map = following entry of `ctx.maps`).
+- `App::enter_state` runs per-screen setup: `LevelSelect` rescans maps, `Paused` resets to its main page, and
+  leaving `PresetEditor` calls `screens::refresh_presets` (rescan + reload the selected preset from disk).
+- HUD (`ui/hud.rs`): coin counter with icon, timer, minimap toggle and pause buttons (top-right,
+  `update_hud` handles clicks), map name, fading controls hint. `render/minimap.rs` draws the framed minimap.
+- No keyboard shortcut changes parameters: everything is in the settings / pause menus.
 - Persisting settings (e.g. `settings.json` with serde, already a dependency) is not done yet.
 
 ### (c) Custom preset creator (`screens/preset_editor.rs`, `assets/preset.rs`)

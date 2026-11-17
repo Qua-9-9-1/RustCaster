@@ -1,140 +1,174 @@
-// Pause / settings overlay (minimal stub) drawn over the frozen 3D view.
-// Exposes the settings that used to be keyboard hacks (FOV U/J, sensitivity
-// I/K, numpad presets) as buttons going through `Settings` / `AppContext`.
+// Pause menu drawn over the (still rendered) 3D view: Resume, Settings,
+// style (preset) picker applied immediately, Restart map, Main menu, Quit.
+// "Settings" swaps the panel content for the shared `SettingsPanel`.
 
 use sdl2::keyboard::Scancode;
 
 use crate::app::{AppContext, AppState, Transition};
 use crate::input::Input;
 use crate::render::framebuffer::{FrameBuffer, Rect};
-use crate::ui::font::draw_text_centered;
-use crate::ui::widgets::{centered, draw_panel, row, text_scale, Button, TEXT_COLOR};
+use crate::ui::font::text_size;
+use crate::ui::preview::draw_preset_preview;
+use crate::ui::theme::{self, ellipsize, fit_scale, metrics, Metrics};
+use crate::ui::widgets::{centered, Button, Focus};
 
-pub struct PauseScreen;
+use super::settings::SettingsPanel;
 
-struct Layout {
-    panel: Rect,
-    title: Rect,
-    resume: Button,
-    fov_minus: Button,
-    fov_label: Rect,
-    fov_plus: Button,
-    sens_minus: Button,
-    sens_label: Rect,
-    sens_plus: Button,
-    preset_prev: Button,
-    preset_label: Rect,
-    preset_next: Button,
-    minimap: Button,
-    menu: Button,
-    quit: Button,
-    scale: i32,
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Page {
+    Main,
+    Settings,
 }
 
-/// `[-] label [+]` row.
-fn stepper(area: Rect, gap: i32, scale: i32, minus: &str, plus: &str) -> (Button, Rect, Button) {
-    let cells = row(area, gap, 4);
-    let label = Rect::new(cells[1].x, area.y, cells[2].right() - cells[1].x, area.h);
-    (Button::new(minus, cells[0], scale), label, Button::new(plus, cells[3], scale))
+// focus order of the main page
+const RESUME: usize = 0;
+const SETTINGS: usize = 1;
+const STYLE_PREV: usize = 2;
+const STYLE_NEXT: usize = 3;
+const RESTART: usize = 4;
+const MENU: usize = 5;
+const QUIT: usize = 6;
+
+pub struct PauseScreen {
+    page: Page,
+    focus: Focus,
+    settings: SettingsPanel,
+}
+
+struct Layout {
+    m: Metrics,
+    panel: Rect,
+    title: Rect,
+    /// Main page: buttons in focus order, and the style row middle cell.
+    buttons: Vec<Button>,
+    style: Rect,
+    /// Settings page content.
+    content: Rect,
 }
 
 impl PauseScreen {
     pub fn new() -> PauseScreen {
-        PauseScreen
+        PauseScreen { page: Page::Main, focus: Focus::default(), settings: SettingsPanel::new() }
     }
 
-    fn layout(&self, ctx: &AppContext, fb_size: (usize, usize)) -> Layout {
-        let scale = text_scale(fb_size.1);
-        let item_h = 12 * scale;
-        let gap = 3 * scale;
-        let rows = 8;
-        let w = (fb_size.0 as i32 / 2).max(200);
-        let h = rows * (item_h + gap) + 8 * scale;
-        let panel = centered(Rect::new(0, 0, fb_size.0 as i32, fb_size.1 as i32), w, h);
-        let inner = panel.inset(4 * scale);
-        let mut y = inner.y;
-        let mut next_row = || {
-            let r = Rect::new(inner.x, y, inner.w, item_h);
-            y += item_h + gap;
-            r
-        };
-        let title = next_row();
-        let resume = Button::new("Resume", next_row(), scale);
-        let (fov_minus, fov_label, fov_plus) = stepper(next_row(), gap, scale, "-", "+");
-        let (sens_minus, sens_label, sens_plus) = stepper(next_row(), gap, scale, "-", "+");
-        let (preset_prev, preset_label, preset_next) = stepper(next_row(), gap, scale, "<", ">");
-        let minimap_label = if ctx.settings.show_minimap { "Minimap: on" } else { "Minimap: off" };
-        let minimap = Button::new(minimap_label, next_row(), scale);
-        let menu = Button::new("Main menu", next_row(), scale);
-        let quit = Button::new("Quit", next_row(), scale);
-        Layout {
-            panel,
-            title,
-            resume,
-            fov_minus,
-            fov_label,
-            fov_plus,
-            sens_minus,
-            sens_label,
-            sens_plus,
-            preset_prev,
-            preset_label,
-            preset_next,
-            minimap,
-            menu,
-            quit,
-            scale,
+    /// Called by `App` every time the game gets paused.
+    pub fn on_enter(&mut self) {
+        self.page = Page::Main;
+        self.focus = Focus::default();
+    }
+
+    fn layout(&self, fb_size: (usize, usize)) -> Layout {
+        let (w, h) = (fb_size.0 as i32, fb_size.1 as i32);
+        let m = metrics(fb_size.1);
+        let screen = Rect::new(0, 0, w, h);
+        let title_h = 22 * m.s;
+        match self.page {
+            Page::Main => {
+                let rows = 6;
+                let pw = (170 * m.s).min(w - 2 * m.margin);
+                let ph = 2 * m.pad + title_h + rows * m.button_h + (rows - 1) * m.gap;
+                let panel = centered(screen, pw, ph);
+                let inner = panel.inset(m.pad);
+                let title = Rect::new(inner.x, inner.y, inner.w, title_h);
+                let mut y = title.bottom();
+                let mut next = || {
+                    let r = Rect::new(inner.x, y, inner.w, m.button_h);
+                    y += m.button_h + m.gap;
+                    r
+                };
+                let resume = next();
+                let settings = next();
+                let style_row = next();
+                let restart = next();
+                let menu = next();
+                let quit = next();
+                let bh = m.button_h;
+                let prev = Rect::new(style_row.x, style_row.y, bh, bh);
+                let nxt = Rect::new(style_row.right() - bh, style_row.y, bh, bh);
+                let style = Rect::new(prev.right() + m.gap, style_row.y, nxt.x - m.gap - prev.right() - m.gap, bh);
+                let f = |i: usize| self.focus.is(i);
+                let buttons = vec![
+                    Button::new("Resume", resume, m.s).primary().focused(f(RESUME)),
+                    Button::new("Settings", settings, m.s).focused(f(SETTINGS)),
+                    Button::new("<", prev, m.s).focused(f(STYLE_PREV)),
+                    Button::new(">", nxt, m.s).focused(f(STYLE_NEXT)),
+                    Button::new("Restart map", restart, m.s).focused(f(RESTART)),
+                    Button::new("Main menu", menu, m.s).focused(f(MENU)),
+                    Button::new("Quit game", quit, m.s).focused(f(QUIT)),
+                ];
+                Layout { m, panel, title, buttons, style, content: Rect::default() }
+            }
+            Page::Settings => {
+                let pw = (SettingsPanel::content_width(&m) + 2 * m.pad).min(w - 2 * m.margin);
+                let ph = 2 * m.pad + title_h + SettingsPanel::content_height(&m);
+                let panel = centered(screen, pw, ph);
+                let inner = panel.inset(m.pad);
+                let title = Rect::new(inner.x, inner.y, inner.w, title_h);
+                let content = Rect::new(inner.x, title.bottom(), inner.w, inner.bottom() - title.bottom());
+                Layout { m, panel, title, buttons: Vec::new(), style: Rect::default(), content }
+            }
         }
     }
 
     pub fn update(&mut self, ctx: &mut AppContext, input: &Input, fb_size: (usize, usize)) -> Transition {
-        if input.was_pressed(Scancode::Escape) {
-            return Transition::To(AppState::Playing);
+        let l = self.layout(fb_size);
+        match self.page {
+            Page::Settings => {
+                if self.settings.update(ctx, input, l.content, &l.m) || input.was_pressed(Scancode::Escape) {
+                    self.page = Page::Main;
+                    self.focus = Focus::new(Some(SETTINGS));
+                }
+                Transition::None
+            }
+            Page::Main => {
+                if input.was_pressed(Scancode::Escape) {
+                    return Transition::To(AppState::Playing);
+                }
+                let refs: Vec<&Button> = l.buttons.iter().collect();
+                match self.focus.update(input, &refs) {
+                    Some(RESUME) => return Transition::To(AppState::Playing),
+                    Some(SETTINGS) => {
+                        self.page = Page::Settings;
+                    }
+                    Some(STYLE_PREV) => ctx.cycle_preset(-1),
+                    Some(STYLE_NEXT) => ctx.cycle_preset(1),
+                    Some(RESTART) => return Transition::RestartGame,
+                    Some(MENU) => return Transition::QuitToMenu,
+                    Some(QUIT) => return Transition::Quit,
+                    _ => {}
+                }
+                Transition::None
+            }
         }
-        let l = self.layout(ctx, fb_size);
-        if l.resume.clicked(input) {
-            return Transition::To(AppState::Playing);
-        }
-        if l.fov_minus.clicked(input) {
-            ctx.settings.adjust_fov(-10.0);
-        }
-        if l.fov_plus.clicked(input) {
-            ctx.settings.adjust_fov(10.0);
-        }
-        if l.sens_minus.clicked(input) {
-            ctx.settings.adjust_sensitivity(-0.5);
-        }
-        if l.sens_plus.clicked(input) {
-            ctx.settings.adjust_sensitivity(0.5);
-        }
-        if l.preset_prev.clicked(input) {
-            ctx.cycle_preset(-1);
-        }
-        if l.preset_next.clicked(input) {
-            ctx.cycle_preset(1);
-        }
-        if l.minimap.clicked(input) {
-            ctx.settings.show_minimap = !ctx.settings.show_minimap;
-        }
-        if l.menu.clicked(input) {
-            return Transition::QuitToMenu;
-        }
-        if l.quit.clicked(input) {
-            return Transition::Quit;
-        }
-        Transition::None
     }
 
     pub fn draw(&self, ctx: &AppContext, fb: &mut FrameBuffer, input: &Input) {
-        let l = self.layout(ctx, (fb.width(), fb.height()));
-        draw_panel(fb, l.panel);
-        draw_text_centered(fb, "Paused", l.title, l.scale, TEXT_COLOR);
-        for b in [&l.resume, &l.fov_minus, &l.fov_plus, &l.sens_minus, &l.sens_plus, &l.preset_prev, &l.preset_next, &l.minimap, &l.menu, &l.quit] {
-            b.draw(fb, input);
+        let l = self.layout((fb.width(), fb.height()));
+        let m = &l.m;
+        fb.fill_rect(fb.bounds(), theme::OVERLAY_DIM);
+        theme::draw_panel(fb, l.panel);
+        let title = if self.page == Page::Main { "PAUSED" } else { "SETTINGS" };
+        theme::draw_title(fb, title, Rect::new(l.title.x, l.title.y, l.title.w, l.title.h - m.gap), 2 * m.s);
+        match self.page {
+            Page::Settings => self.settings.draw(ctx, fb, input, l.content, m),
+            Page::Main => {
+                for b in &l.buttons {
+                    b.draw(fb, input);
+                }
+                // style cell: small preview + preset name
+                let cell = l.style;
+                fb.fill_rect(cell, theme::BUTTON_PRESSED);
+                fb.draw_rect(cell, theme::BUTTON_BORDER);
+                let thumb = Rect::new(cell.x + m.s, cell.y + m.s, (cell.h - 2 * m.s) * 4 / 3, cell.h - 2 * m.s);
+                draw_preset_preview(fb, &ctx.preset, thumb);
+                let text_x = thumb.right() + m.gap;
+                let avail = cell.right() - m.gap - text_x;
+                let name = &ctx.settings.preset;
+                let scale = fit_scale(name, avail, m.s);
+                let text = ellipsize(name, avail, scale);
+                let th = text_size(&text, scale).1;
+                theme::draw_text_soft(fb, &text, text_x, cell.y + (cell.h - th) / 2, scale, theme::TEXT);
+            }
         }
-        let s = &ctx.settings;
-        draw_text_centered(fb, &format!("FOV {:.0}", s.fov_deg), l.fov_label, l.scale, TEXT_COLOR);
-        draw_text_centered(fb, &format!("Sens {:.1}", s.sensitivity), l.sens_label, l.scale, TEXT_COLOR);
-        draw_text_centered(fb, &s.preset, l.preset_label, l.scale, TEXT_COLOR);
     }
 }

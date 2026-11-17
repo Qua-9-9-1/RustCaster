@@ -13,8 +13,16 @@ The game is cross-compiled to a Windows `.exe` inside Docker, then launched nati
 
 ## Controls
 
-W / S (or Up / Down) move, A / D (or Left / Right) turn, Escape pauses
-(FOV, sensitivity, preset and minimap are set from the pause menu).
+In game: W / S (or Up / Down) move, A / D (or Left / Right) turn, Escape (or the
+top-right pause button) opens the pause menu. The map button next to it toggles the minimap.
+
+Menus work with the mouse, or with the arrows + Enter, Escape going back:
+- Title screen: Play, Create preset, Settings, Quit.
+- Level select: pick a map in the list (wheel / Up / Down) and a style with `<` `>`
+  (Left / Right), then Start (Enter).
+- Pause: Resume, Settings, style (applied immediately), Restart map, Main menu, Quit.
+- Settings (title screen or pause): field of view, turn speed, minimap.
+- Reaching an exit shows the score, coins and time with Next map / Replay / Menu.
 
 Code layout: see [ARCHITECTURE.md](ARCHITECTURE.md).
 

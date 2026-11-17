@@ -1,8 +1,9 @@
 // Application state machine.
 //
-//   Menu ──StartGame──> Playing <──Esc──> Paused ──> Menu
-//    │                     └── level finished ──> Menu
-//    └──> PresetEditor ──> Menu
+//   Menu ──> LevelSelect ──StartGame──> Playing <──Esc / HUD──> Paused ──> Menu
+//    │  └──> Settings          │                        (Restart: RestartGame)
+//    │                         └── exit reached ──> LevelComplete ──> Playing (next / replay) | Menu
+//    └──> PresetEditor ──> Menu (presets rescanned)
 //
 // Each screen (see `screens/`) gets the shared `AppContext`, returns a
 // `Transition`, and `App::apply` performs it. Adding a screen = a new
@@ -20,11 +21,14 @@ use crate::input::Input;
 use crate::render::framebuffer::FrameBuffer;
 use crate::render::minimap::draw_minimap;
 use crate::render::raycaster::{Camera, FlatRenderer, Raycaster, View, WorldRenderer};
+use crate::screens::level_complete::{LevelCompleteScreen, LevelResult};
+use crate::screens::level_select::LevelSelectScreen;
 use crate::screens::menu::MenuScreen;
 use crate::screens::pause::PauseScreen;
 use crate::screens::preset_editor::PresetEditorScreen;
+use crate::screens::settings::SettingsScreen;
 use crate::settings::Settings;
-use crate::ui::hud::draw_hud;
+use crate::ui::hud::{draw_hud, update_hud};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum AppState {
@@ -32,6 +36,10 @@ pub enum AppState {
     Playing,
     Paused,
     PresetEditor,
+    LevelSelect,
+    Settings,
+    /// End-of-level overlay (the finished game stays loaded behind it).
+    LevelComplete,
 }
 
 /// What a screen asks the app to do after its update.
@@ -42,6 +50,8 @@ pub enum Transition {
     To(AppState),
     /// Load the map and switch to `Playing` (errors go to `ctx.message` and stay in Menu).
     StartGame(PathBuf),
+    /// Reload the current game's map from the start (menu if no game).
+    RestartGame,
     /// Drop the current game and go back to the menu.
     QuitToMenu,
     Quit,
@@ -132,6 +142,9 @@ pub struct App {
     menu: MenuScreen,
     pause: PauseScreen,
     preset_editor: PresetEditorScreen,
+    level_select: LevelSelectScreen,
+    settings: SettingsScreen,
+    level_complete: LevelCompleteScreen,
     quit: bool,
 }
 
@@ -147,6 +160,9 @@ impl App {
             menu: MenuScreen::new(),
             pause: PauseScreen::new(),
             preset_editor: PresetEditorScreen::new(),
+            level_select: LevelSelectScreen::new(),
+            settings: SettingsScreen::new(),
+            level_complete: LevelCompleteScreen::new(),
             quit: false,
         };
         if let Some(arg) = cli_map {
@@ -165,35 +181,46 @@ impl App {
             AppState::Menu => self.menu.update(&mut self.ctx, input, fb_size),
             AppState::PresetEditor => self.preset_editor.update(&mut self.ctx, input, fb_size),
             AppState::Paused => self.pause.update(&mut self.ctx, input, fb_size),
-            AppState::Playing => self.update_playing(input, dt),
+            AppState::Playing => self.update_playing(input, dt, fb_size),
+            AppState::LevelSelect => self.level_select.update(&mut self.ctx, input, fb_size),
+            AppState::Settings => self.settings.update(&mut self.ctx, input, fb_size),
+            AppState::LevelComplete => self.level_complete.update(&mut self.ctx, input, fb_size),
         };
         self.apply(transition);
     }
 
-    fn update_playing(&mut self, input: &Input, dt: f64) -> Transition {
+    fn update_playing(&mut self, input: &Input, dt: f64, fb_size: (usize, usize)) -> Transition {
         let game = match self.game.as_mut() {
             Some(g) => g,
             None => return Transition::To(AppState::Menu),
         };
-        if input.was_pressed(Scancode::Escape) {
+        let pause_clicked = update_hud(input, fb_size, &mut self.ctx.settings, game.map.total_coins);
+        if input.was_pressed(Scancode::Escape) || pause_clicked {
             return Transition::To(AppState::Paused);
         }
         game.update(input, &self.ctx.settings, dt);
         if game.finished {
-            self.ctx.message = Some(format!(
-                "Level complete! Coins {}/{}",
-                game.coins_collected, game.map.total_coins
-            ));
-            return Transition::QuitToMenu;
+            let result = LevelResult::new(game, &self.ctx.maps);
+            self.ctx.message = Some(result.summary());
+            self.level_complete.open(result);
+            return Transition::To(AppState::LevelComplete);
         }
         Transition::None
     }
 
     pub fn apply(&mut self, transition: Transition) {
+        let previous = self.state;
+        let transition = match transition {
+            Transition::RestartGame => match &self.game {
+                Some(g) => Transition::StartGame(g.map_path.clone()),
+                None => Transition::QuitToMenu,
+            },
+            t => t,
+        };
         match transition {
-            Transition::None => {}
+            Transition::None | Transition::RestartGame => {}
             Transition::To(state) => {
-                let needs_game = matches!(state, AppState::Playing | AppState::Paused);
+                let needs_game = matches!(state, AppState::Playing | AppState::Paused | AppState::LevelComplete);
                 self.state = if needs_game && self.game.is_none() { AppState::Menu } else { state };
             }
             Transition::StartGame(path) => match GameState::load(&path) {
@@ -206,7 +233,9 @@ impl App {
                     let msg = format!("Error: {}: {}", path.display(), e);
                     eprintln!("{}", msg);
                     self.ctx.message = Some(msg);
-                    self.state = AppState::Menu;
+                    // show the error where maps are picked (title screen at startup)
+                    self.game = None;
+                    self.state = if previous == AppState::Menu { AppState::Menu } else { AppState::LevelSelect };
                 }
             },
             Transition::QuitToMenu => {
@@ -215,22 +244,43 @@ impl App {
             }
             Transition::Quit => self.quit = true,
         }
+        if self.state != previous {
+            self.enter_state(previous);
+        }
+    }
+
+    /// Per-screen setup when `self.state` was just entered from `previous`.
+    fn enter_state(&mut self, previous: AppState) {
+        if previous == AppState::PresetEditor {
+            crate::screens::refresh_presets(&mut self.ctx);
+        }
+        match self.state {
+            AppState::LevelSelect => self.level_select.on_enter(&mut self.ctx),
+            AppState::Paused => self.pause.on_enter(),
+            _ => {}
+        }
     }
 
     pub fn render(&mut self, fb: &mut FrameBuffer, input: &Input) {
         match self.state {
             AppState::Menu => self.menu.draw(&self.ctx, fb, input),
             AppState::PresetEditor => self.preset_editor.draw(&self.ctx, fb, input),
-            AppState::Playing => self.render_world(fb),
+            AppState::LevelSelect => self.level_select.draw(&self.ctx, fb, input),
+            AppState::Settings => self.settings.draw(&self.ctx, fb, input),
+            AppState::Playing => self.render_world(fb, input),
             AppState::Paused => {
-                self.render_world(fb);
+                self.render_world(fb, input);
                 self.pause.draw(&self.ctx, fb, input);
+            }
+            AppState::LevelComplete => {
+                self.render_world(fb, input);
+                self.level_complete.draw(&self.ctx, fb, input);
             }
         }
     }
 
     /// 3D view + minimap + HUD of the current game.
-    fn render_world(&mut self, fb: &mut FrameBuffer) {
+    fn render_world(&mut self, fb: &mut FrameBuffer, input: &Input) {
         let game = match self.game.as_ref() {
             Some(g) => g,
             None => return,
@@ -246,6 +296,6 @@ impl App {
         if self.ctx.settings.show_minimap {
             draw_minimap(fb, &game.map, &game.player, &self.ctx.preset, &self.raycaster.ray_ends);
         }
-        draw_hud(fb, game, &self.ctx.settings);
+        draw_hud(fb, game, &self.ctx.settings, &self.ctx.preset, input);
     }
 }
