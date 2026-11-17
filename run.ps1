@@ -2,10 +2,12 @@
 # Usage: .\run.ps1                    (opens the menu)
 #        .\run.ps1 maps\map1.txt      (plays a map directly, path relative to rustcaster/)
 #        .\run.ps1 -Build             (build only)
+#        .\run.ps1 -Package           (release build zipped into rustcaster\dist\rustcaster-windows-x64.zip)
 
 param(
     [string]$Map = "",
-    [switch]$Build
+    [switch]$Build,
+    [switch]$Package
 )
 
 $ErrorActionPreference = "Stop"
@@ -15,6 +17,16 @@ $project = Join-Path $root "rustcaster"
 
 docker build -q -t rustcaster-build $root | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "docker image build failed" }
+
+if ($Package) {
+    docker run --rm -v "${root}:/repo" -v rustcaster-cargo-registry:/usr/local/cargo/registry -w /repo/rustcaster rustcaster-build sh ../scripts/package-windows.sh
+    if ($LASTEXITCODE -ne 0) { throw "packaging failed" }
+    $dist = Join-Path $project "dist"
+    $zip = Join-Path $dist "rustcaster-windows-x64.zip"
+    Compress-Archive -Path (Join-Path $dist "rustcaster-windows-x64") -DestinationPath $zip -Force
+    Write-Host "Created $zip"
+    exit 0
+}
 
 # named volume keeps the crates.io cache between builds
 docker run --rm -v "${project}:/app" -v rustcaster-cargo-registry:/usr/local/cargo/registry rustcaster-build

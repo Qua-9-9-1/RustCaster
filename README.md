@@ -9,7 +9,17 @@ The game is cross-compiled to a Windows `.exe` inside Docker, then launched nati
 .\run.ps1                  # builds then opens the menu (pick a map / preset)
 .\run.ps1 maps\map1.txt    # plays a map directly (path relative to rustcaster/)
 .\run.ps1 -Build           # build only
+.\run.ps1 -Package         # release build zipped into rustcaster\dist\rustcaster-windows-x64.zip
 ```
+
+## Releases
+
+Pushing a tag `v*` (e.g. `git tag v0.1.0; git push origin v0.1.0`) runs the GitHub Actions
+workflow `.github/workflows/release.yml`, which publishes a release with:
+- `rustcaster-windows-x64.zip`: the game, `SDL2.dll`, assets and maps, ready to play.
+- `rustcaster-linux-x64.tar.gz`: needs SDL2 and GTK 3 installed (`sudo apt install libsdl2-2.0-0 libgtk-3-0`).
+
+Running the workflow manually ("Run workflow") only builds and keeps the archives as workflow artifacts.
 
 ## Controls
 
