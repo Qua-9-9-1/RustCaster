@@ -6,5 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-sdl2 = { version = "0.34.3", features = ["ttf"] }
+sdl2 = "0.34.3"
 image = "0.24.3"
+
+# Optimise even the default (debug) build: an unoptimised game loop is far too slow
+[profile.dev]
+opt-level = 2

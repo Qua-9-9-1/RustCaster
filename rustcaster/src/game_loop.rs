@@ -23,6 +23,7 @@ use crate::is_y_in_map;
 use crate::load_ambiance;
 
 use std::time::Duration;
+use std::time::Instant;
 use std::process;
 use sdl2::pixels::Color;
 use sdl2::keyboard::Scancode;
@@ -135,7 +136,12 @@ fn controls(player: &mut Player, game_t: &mut Game) {
 }
 
 pub fn game_loop(player: &mut Player, game_t: &mut Game) {
+    // target frame time (60 FPS): we only sleep for what is left of the frame,
+    // instead of always sleeping 1/60s on top of the rendering time
+    let frame_duration = Duration::from_nanos(1_000_000_000u64 / 60);
+
     loop {
+        let frame_start = Instant::now();
         draw_screen(game_t, player);
         draw_minimap(game_t, &player);
         controls(player, game_t);
@@ -146,6 +152,8 @@ pub fn game_loop(player: &mut Player, game_t: &mut Game) {
         if game_t.ascii_map[(player.pos.y as i32 / BLOCK_SIZE) as usize][(player.pos.x as i32 / BLOCK_SIZE) as usize] == 'E'
             { break; }
         game_t.canvas.present();
-        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
+        let elapsed = frame_start.elapsed();
+        if elapsed < frame_duration
+            { ::std::thread::sleep(frame_duration - elapsed); }
     }
 }
