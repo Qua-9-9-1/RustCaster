@@ -83,4 +83,66 @@ impl Texture {
         }
         Color::rgb((r / n) as u8, (g / n) as u8, (b / n) as u8)
     }
+
+    /// Box-filtered resize (good for downscaling; nearest-like when upscaling).
+    /// Colours are averaged weighted by alpha so transparent texels do not
+    /// darken the edges of sprites; alpha itself is averaged.
+    pub fn resized(&self, width: usize, height: usize) -> Texture {
+        let (width, height) = (width.max(1), height.max(1));
+        if self.width == 0 || self.height == 0 {
+            return Texture::solid(width, height, Color::rgba(0, 0, 0, 0));
+        }
+        let mut pixels = Vec::with_capacity(width * height);
+        for y in 0..height {
+            let sy0 = y * self.height / height;
+            let sy1 = ((y + 1) * self.height / height).max(sy0 + 1);
+            for x in 0..width {
+                let sx0 = x * self.width / width;
+                let sx1 = ((x + 1) * self.width / width).max(sx0 + 1);
+                let (mut r, mut g, mut b, mut a, mut n) = (0u64, 0u64, 0u64, 0u64, 0u64);
+                for sy in sy0..sy1 {
+                    for sx in sx0..sx1 {
+                        let c = Color::from_u32(self.pixels[sy * self.width + sx]);
+                        let ca = c.a as u64;
+                        r += c.r as u64 * ca;
+                        g += c.g as u64 * ca;
+                        b += c.b as u64 * ca;
+                        a += ca;
+                        n += 1;
+                    }
+                }
+                let c = if a == 0 {
+                    Color::rgba(0, 0, 0, 0)
+                } else {
+                    Color::rgba((r / a) as u8, (g / a) as u8, (b / a) as u8, (a / n) as u8)
+                };
+                pixels.push(c.to_u32());
+            }
+        }
+        Texture { width, height, pixels }
+    }
+
+    /// Downscales (keeping the aspect ratio) so that no side exceeds `max_side`.
+    /// Returns a plain copy when it already fits.
+    pub fn fit_within(&self, max_side: usize) -> Texture {
+        let longest = self.width.max(self.height);
+        if longest <= max_side || longest == 0 {
+            return self.clone();
+        }
+        let w = (self.width * max_side + longest / 2) / longest;
+        let h = (self.height * max_side + longest / 2) / longest;
+        self.resized(w, h)
+    }
+
+    /// Composites every texel over `background`: the result is fully opaque.
+    pub fn flattened(&self, background: Color) -> Texture {
+        let bg = background.with_alpha(255).to_u32();
+        let pixels = self.pixels.iter().map(|&p| crate::render::color::blend_u32(bg, p, 255)).collect();
+        Texture { width: self.width, height: self.height, pixels }
+    }
+
+    /// True if at least one texel is not fully opaque.
+    pub fn has_transparency(&self) -> bool {
+        self.pixels.iter().any(|&p| (p >> 24) != 0xFF)
+    }
 }

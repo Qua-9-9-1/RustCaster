@@ -4,7 +4,9 @@
 // Presets (formerly "ambiances"): a named look for a level = flat colours,
 // `outside` / `fog` flags and optional textures.
 //
-// On disk a preset is a folder `assets/presets/<name>/` holding any of the
+// On disk a preset is a folder `assets/presets/<name>/` (shipped) or
+// `presets/<name>/` (user presets made with the preset editor, see
+// `USER_PRESETS_DIR`) holding any of the
 // conventional texture files (see `TextureSlot::file_name`) and an optional
 // `preset.json` (colours + flags, see `PresetFile`). Without `preset.json`,
 // colours and flags come from the built-in table below (the 8 historical
@@ -325,53 +327,110 @@ impl CommonAssets {
     }
 }
 
+/// User presets live in their own folder, next to `assets/` and `maps/`
+/// (`<data root>/presets/<folder>/`), so the shipped `assets/presets/` stay
+/// untouched and read-only from the game's point of view.
+pub const USER_PRESETS_DIR: &str = "presets";
+
+/// Longest folder name produced by `folder_name_for`.
+const MAX_FOLDER_LEN: usize = 32;
+
+/// File names Windows refuses as folder names.
+const RESERVED_NAMES: [&str; 22] = [
+    "con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8", "com9", "lpt1",
+    "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
+];
+
+/// Folder name (= preset id in `Settings`) for a display name: lowercase
+/// ASCII letters, digits, `-` and `_` (anything else becomes `_`), trimmed
+/// and capped. Empty when nothing usable is left.
+pub fn folder_name_for(name: &str) -> String {
+    let mut folder: String = name
+        .trim()
+        .chars()
+        .take(MAX_FOLDER_LEN)
+        .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c.to_ascii_lowercase() } else { '_' })
+        .collect();
+    if folder.chars().all(|c| c == '_') {
+        folder.clear();
+    }
+    if RESERVED_NAMES.contains(&folder.as_str()) {
+        folder.push('_');
+    }
+    folder
+}
+
 #[derive(Clone, Debug)]
 pub struct PresetEntry {
     /// Folder name (or built-in name), used as the preset id in `Settings`.
     pub name: String,
     pub dir: Option<PathBuf>,
+    /// Created with the preset editor (lives in `user_dir`): may be edited/deleted.
+    pub user: bool,
 }
 
 /// List of available presets: built-ins first, then any other folder of
-/// `assets/presets/` (custom presets), alphabetically. Textures are only
-/// loaded on `load`.
+/// `assets/presets/` (shipped extras), then the user presets of `user_dir`,
+/// each group alphabetically. Textures are only loaded on `load`.
 pub struct PresetLibrary {
     pub presets_dir: PathBuf,
+    /// Where the preset editor saves (see `USER_PRESETS_DIR`).
+    pub user_dir: PathBuf,
     pub entries: Vec<PresetEntry>,
 }
 
+fn sorted_subdirs(dir: &Path) -> Vec<(String, PathBuf)> {
+    let mut dirs: Vec<(String, PathBuf)> = fs::read_dir(dir)
+        .map(|rd| {
+            rd.filter_map(|e| e.ok())
+                .map(|e| e.path())
+                .filter(|p| p.is_dir())
+                .filter_map(|p| Some((p.file_name()?.to_string_lossy().into_owned(), p)))
+                .collect()
+        })
+        .unwrap_or_default();
+    dirs.sort_by(|a, b| a.0.cmp(&b.0));
+    dirs
+}
+
 impl PresetLibrary {
+    /// `presets_dir` is `<data root>/assets/presets`; the user folder is
+    /// derived from it (`<data root>/presets`).
     pub fn scan(presets_dir: &Path) -> PresetLibrary {
+        let user_dir = presets_dir
+            .parent()
+            .and_then(Path::parent)
+            .map(|root| root.join(USER_PRESETS_DIR))
+            .unwrap_or_else(|| PathBuf::from(USER_PRESETS_DIR));
+        PresetLibrary::scan_with(presets_dir, &user_dir)
+    }
+
+    pub fn scan_with(presets_dir: &Path, user_dir: &Path) -> PresetLibrary {
         let mut entries: Vec<PresetEntry> = BUILTIN_PRESETS
             .iter()
             .map(|n| {
                 let d = presets_dir.join(n);
-                PresetEntry { name: n.to_string(), dir: if d.is_dir() { Some(d) } else { None } }
+                PresetEntry { name: n.to_string(), dir: if d.is_dir() { Some(d) } else { None }, user: false }
             })
             .collect();
-        let mut others: Vec<PresetEntry> = fs::read_dir(presets_dir)
-            .map(|rd| {
-                rd.filter_map(|e| e.ok())
-                    .map(|e| e.path())
-                    .filter(|p| p.is_dir())
-                    .filter_map(|p| {
-                        let name = p.file_name()?.to_string_lossy().into_owned();
-                        if BUILTIN_PRESETS.contains(&name.as_str()) {
-                            None
-                        } else {
-                            Some(PresetEntry { name, dir: Some(p) })
-                        }
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-        others.sort_by(|a, b| a.name.cmp(&b.name));
-        entries.extend(others);
-        PresetLibrary { presets_dir: presets_dir.to_path_buf(), entries }
+        for (name, dir) in sorted_subdirs(presets_dir) {
+            if !BUILTIN_PRESETS.contains(&name.as_str()) {
+                entries.push(PresetEntry { name, dir: Some(dir), user: false });
+            }
+        }
+        for (name, dir) in sorted_subdirs(user_dir) {
+            // a shipped preset with the same id wins (ids must be unique)
+            if entries.iter().any(|e| e.name == name) {
+                eprintln!("Warning: user preset {} hidden by a built-in preset of the same name", dir.display());
+                continue;
+            }
+            entries.push(PresetEntry { name, dir: Some(dir), user: true });
+        }
+        PresetLibrary { presets_dir: presets_dir.to_path_buf(), user_dir: user_dir.to_path_buf(), entries }
     }
 
     pub fn rescan(&mut self) {
-        *self = PresetLibrary::scan(&self.presets_dir.clone());
+        *self = PresetLibrary::scan_with(&self.presets_dir.clone(), &self.user_dir.clone());
     }
 
     pub fn len(&self) -> usize {
@@ -382,11 +441,16 @@ impl PresetLibrary {
         self.entries.iter().position(|e| e.name == name)
     }
 
+    /// True if `name` is a user preset (editable / deletable).
+    pub fn is_user(&self, name: &str) -> bool {
+        self.entries.iter().any(|e| e.name == name && e.user)
+    }
+
     /// Loads entry `index` (clamped) with its textures.
     pub fn load(&self, index: usize, common: &CommonAssets) -> Preset {
         match self.entries.get(index.min(self.entries.len().saturating_sub(1))) {
             Some(PresetEntry { dir: Some(dir), .. }) => Preset::load_dir(dir, common),
-            Some(PresetEntry { name, dir: None }) => {
+            Some(PresetEntry { name, dir: None, .. }) => {
                 let mut p = Preset::builtin(name);
                 p.textures.end = common.end.clone();
                 p
@@ -395,21 +459,52 @@ impl PresetLibrary {
         }
     }
 
-    /// Saves `preset` as `assets/presets/<sanitized name>/` and rescans.
+    /// Validates a display name for saving. `replacing` is the id of the user
+    /// preset being edited (it may keep or change its own name). Returns the
+    /// folder name / id the preset would get.
+    pub fn check_name(&self, name: &str, replacing: Option<&str>) -> Result<String, String> {
+        if name.trim().is_empty() {
+            return Err("Enter a name".to_string());
+        }
+        let folder = folder_name_for(name);
+        if folder.is_empty() {
+            return Err("Use letters or digits in the name".to_string());
+        }
+        match self.entries.iter().find(|e| e.name == folder) {
+            Some(e) if !e.user => Err(format!("'{}' is a built-in preset", folder)),
+            Some(e) if Some(e.name.as_str()) != replacing => Err(format!("'{}' already exists", folder)),
+            _ => Ok(folder),
+        }
+    }
+
+    /// Saves `preset` as a new user preset (`user_dir/<folder name>/`) and
+    /// rescans. Refuses names already taken (built-ins are never overwritten).
     /// Returns the folder (its name is the new entry's id).
     pub fn save(&mut self, preset: &Preset) -> Result<PathBuf, String> {
-        let folder: String = preset
-            .name
-            .trim()
-            .chars()
-            .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c.to_ascii_lowercase() } else { '_' })
-            .collect();
-        if folder.is_empty() {
-            return Err("preset name is empty".to_string());
-        }
-        let dir = self.presets_dir.join(&folder);
+        self.save_as(preset, None)
+    }
+
+    /// Like `save`, but may overwrite the user preset `replacing` when the name
+    /// still maps to it. A different name creates a new preset (a copy): the
+    /// old one is kept.
+    pub fn save_as(&mut self, preset: &Preset, replacing: Option<&str>) -> Result<PathBuf, String> {
+        let replacing = replacing.filter(|r| self.is_user(r));
+        let folder = self.check_name(&preset.name, replacing)?;
+        let dir = self.user_dir.join(&folder);
         preset.save_to_dir(&dir)?;
         self.rescan();
         Ok(dir)
+    }
+
+    /// Deletes the user preset `name` (its folder) and rescans. Built-ins are refused.
+    pub fn delete(&mut self, name: &str) -> Result<(), String> {
+        let dir = match self.entries.iter().find(|e| e.name == name) {
+            Some(PresetEntry { dir: Some(dir), user: true, .. }) => dir.clone(),
+            Some(_) => return Err(format!("'{}' is a built-in preset", name)),
+            None => return Err(format!("no preset '{}'", name)),
+        };
+        fs::remove_dir_all(&dir).map_err(|e| format!("{}: {}", dir.display(), e))?;
+        self.rescan();
+        Ok(())
     }
 }

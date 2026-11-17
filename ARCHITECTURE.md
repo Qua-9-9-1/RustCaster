@@ -118,11 +118,27 @@ in `Menu`. Reaching an exit returns to the menu with the score in `ctx.message`.
 
 ### (c) Custom preset creator (`screens/preset_editor.rs`, `assets/preset.rs`)
 
-- The screen is a stub showing the current preset's texture slots. Expected flow: start from
-  `ctx.preset.clone()` or `Preset::builtin(..)`, set `textures.get_mut(slot) = Some(Texture::load(path)?)`
-  for user images (paths typed with `input.text()`, or dropped files: add `Event::DropFile` handling to
-  `Input`), edit `colors` / `outside` / `fog`, then `ctx.presets.save(&preset)` (writes
-  `assets/presets/<sanitized name>/preset.json` + PNGs and rescans) and `ctx.select_preset(index)`.
+- Storage: shipped presets live in `assets/presets/` and are never written by the game. User presets
+  live in `<data root>/presets/<id>/` (`USER_PRESETS_DIR`, next to `assets/` and `maps/`), same layout
+  (conventional PNGs + `preset.json`). `PresetLibrary::scan` lists built-ins, then other shipped folders,
+  then user folders (`PresetEntry::user == true`); a user folder named like a shipped preset is ignored.
+  The id is `folder_name_for(name)` (lowercase ASCII, `-`, `_`, max 32 chars, Windows reserved names
+  suffixed). `check_name(name, replacing)` validates; `save(&preset)` creates a new user preset and
+  refuses any taken id; `save_as(&preset, Some(id))` may overwrite user preset `id` (a different name
+  saves a copy); `delete(id)` removes a user preset (built-ins refused). All of them rescan.
+- Screen (`screens/preset_editor.rs` + `preset_editor/{text_field, import, preview}.rs`): on entry the
+  working copy is `ctx.preset` (a user preset is edited in place, a shipped one is cloned under a free
+  name like "my cave"); "Start from" + "Load" switches base (or "(empty)"). One card per `TextureSlot`:
+  thumbnail, flat colour, "Import" (blocking native dialog via `rfd`, owned by the SDL window through
+  `GetActiveWindow`; input is ignored for a few frames afterwards) and "Clear". Imports are capped at
+  64 MB, downscaled to 256 px max (sky 512), flattened to opaque for wall/floor/ceiling/sky (grid, coin,
+  end keep alpha) and set the slot colour to `average_color`. Clicking a card selects its colour for the
+  RGB sliders / palette / "From texture" panel; the "Sky extras" card holds sun and cloud colours.
+  Outside/Fog toggles, live preview (`preview.rs`, small fixed corridor raycaster), Save (Ctrl+S),
+  Delete, "Open presets folder" (explorer), Back/Escape (asks again when unsaved). After saving, the
+  preset is selected with `ctx.select_preset` and `ctx.message` is set for the menu.
+- Texture helpers used by the import: `Texture::resized`, `fit_within(max_side)`, `flattened(bg)`,
+  `has_transparency`.
 - `preset.json` format (`PresetFile`): `{"name", "outside", "fog", "colors": {"sky": "#RRGGBB", "ceiling",
   "floor", "wall", "grid", "coin", "end", "clouds", "sun"}}`; missing colours default to
   `PresetColors::default()`. Folders without it use `Preset::builtin(folder_name)` colours.
@@ -130,5 +146,4 @@ in `Menu`. Reaching an exit returns to the menu with the score in `ctx.message`.
 ## Known gaps
 
 - `Tile::Monster` is parsed but ignored (walkable, not drawn), like before.
-- `PresetLibrary::save` overwrites an existing folder of the same name, built-ins included.
 - The data root falls back to the cwd if no `assets/` + `maps/` pair is found; errors then show in the menu.

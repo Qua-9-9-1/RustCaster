@@ -10,6 +10,9 @@ sdl2 = "0.34.3"
 image = "0.24.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# native file-open dialog of the preset editor (+ the window handle type it takes as parent)
+rfd = "0.15"
+raw-window-handle = "0.6"
 
 # Optimise even the default (debug) build: an unoptimised game loop is far too slow
 [profile.dev]
