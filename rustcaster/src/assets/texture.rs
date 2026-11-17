@@ -66,6 +66,18 @@ impl Texture {
         self.get((u * self.width as f64).floor() as i64, (v * self.height as f64).floor() as i64)
     }
 
+    /// Copy with RGB multiplied by `tint` (white leaves it unchanged), alpha kept.
+    /// Used to colour the white sun / cloud images with the preset colours.
+    pub fn tinted(&self, tint: Color) -> Texture {
+        let m = |p: u32, shift: u32, t: u8| ((((p >> shift) & 0xFF) * (t as u32 + 1)) >> 8) << shift;
+        let pixels = self
+            .pixels
+            .iter()
+            .map(|&p| (p & 0xFF00_0000) | m(p, 16, tint.r) | m(p, 8, tint.g) | m(p, 0, tint.b))
+            .collect();
+        Texture { width: self.width, height: self.height, pixels }
+    }
+
     /// Average colour, handy as a flat-colour fallback / minimap colour.
     pub fn average_color(&self) -> Color {
         let (mut r, mut g, mut b, mut n) = (0u64, 0u64, 0u64, 0u64);

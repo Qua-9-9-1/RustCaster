@@ -17,7 +17,7 @@ rustcaster/
     settings.rs    Settings: fov, sensitivity, preset, minimap (clamped setters)
     input.rs       Input: per-frame snapshot from SDL events
     game/          map.rs (Map, Tile, MapError), player.rs (movement/collision), mod.rs (GameState)
-    render/        color.rs, framebuffer.rs (FrameBuffer, Rect, Presenter), raycaster.rs, minimap.rs
+    render/        color.rs, framebuffer.rs (FrameBuffer, Rect, Presenter), raycaster.rs, textured.rs, minimap.rs
     assets/        texture.rs (Texture), preset.rs (Preset, PresetLibrary, CommonAssets)
     ui/            font.rs (embedded 8x8 font), widgets.rs (Button, Label, layout), hud.rs
     screens/       menu.rs, pause.rs, preset_editor.rs (minimal stubs)
@@ -105,6 +105,27 @@ in `Menu`. Reaching an exit opens `LevelComplete` (score, Next map / Replay / Me
     occlude with `depth`, bob coins with `view.time`). Note grids are not in `depth`.
   - Fall back to `FlatRenderer` behaviour when a texture slot is `None`; reuse `distance_shade`.
 - Plug it in `App::new` (`world_renderer: Box::new(...)`); a settings toggle can switch renderers.
+
+Implemented in `render/textured.rs` (`TexturedRenderer`, the default in `App::new`; `FlatRenderer` stays
+available):
+- Empty texture slots use a 1x1 texture of the slot's flat colour (grid: alpha 160), so missing textures
+  degrade per slot to the flat look.
+- Shading: `distance_shade` as a lookup table (1/32 tile steps) of integer ops (`ShadeOp`: `rgb * mul + add`),
+  continuous instead of stepped; Y faces x0.75. Euclidean distance everywhere (floor: row distance * |ray_dir|).
+- Walls / grids: `Face` = one textured column span (fixed-point v). Texture u is flipped on X faces hit with
+  dx < 0 and Y faces hit with dy > 0, so faces are never mirrored seen from outside.
+- Floor / ceiling: cast per column below / above the wall with per-row distances computed once per frame
+  (16.16 fixed-point world coordinates). Indoors the ceiling is cast too; outdoors `draw_background` paints the sky.
+- Sky: `textures.sky` if present (u = view angle over 360 deg, v = row over the sky height), else a gradient
+  from `colors.sky` + `common.sun` / clouds placed by world angle and elevation (they wrap and turn with the
+  camera, clouds drift with `view.time`), tinted with `colors.sun` / `colors.clouds` (black = untinted),
+  half-hidden with fog.
+- Grids: `draw_column` only records the faces (back face where the ray leaves the tile, unless a wall/grid
+  follows, then front face); `draw_sprites` draws them merged far to near with the billboards, per column, so
+  coins behind grids are correct. Texel alpha decides (0 = see-through, partial = blended).
+- Sprites (`items_as_sprites() == true`): coins / end tiles within `MAX_RAY_DIST` (tile scan around the
+  camera), coins float and bob, fake-spin by scaling their width; the end flag stands on the floor. Tunables
+  are the constants at the top of the file.
 
 ### (b) Menus, UI, HUD (`screens/`, `ui/`)
 

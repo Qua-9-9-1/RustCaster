@@ -5,3 +5,4 @@ pub mod color;
 pub mod framebuffer;
 pub mod minimap;
 pub mod raycaster;
+pub mod textured;

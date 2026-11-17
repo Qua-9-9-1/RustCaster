@@ -20,7 +20,8 @@ use crate::game::GameState;
 use crate::input::Input;
 use crate::render::framebuffer::FrameBuffer;
 use crate::render::minimap::draw_minimap;
-use crate::render::raycaster::{Camera, FlatRenderer, Raycaster, View, WorldRenderer};
+use crate::render::raycaster::{Camera, Raycaster, View, WorldRenderer};
+use crate::render::textured::TexturedRenderer;
 use crate::screens::level_complete::{LevelCompleteScreen, LevelResult};
 use crate::screens::level_select::LevelSelectScreen;
 use crate::screens::menu::MenuScreen;
@@ -156,7 +157,7 @@ impl App {
             ctx: AppContext::new(data_root),
             game: None,
             raycaster: Raycaster::new(),
-            world_renderer: Box::new(FlatRenderer),
+            world_renderer: Box::new(TexturedRenderer::new()),
             menu: MenuScreen::new(),
             pause: PauseScreen::new(),
             preset_editor: PresetEditorScreen::new(),
