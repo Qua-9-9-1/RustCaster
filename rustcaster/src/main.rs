@@ -104,7 +104,7 @@ fn error_check(filepath: String, _len: usize) -> bool
         return false;
     }
     for c in contents.chars() {
-        if c != '#' && c != 'P' && c != '\n' && c != ' ' && c != 'E' && c != 'X'
+        if c != '#' && c != 'P' && c != '\n' && c != '\r' && c != ' ' && c != 'E' && c != 'X'
         && c != '0' && c != 'M' {
             println!("Error: {} Illegal character in file", filepath);
             return false;

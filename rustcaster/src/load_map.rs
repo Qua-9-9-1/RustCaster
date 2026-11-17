@@ -30,7 +30,8 @@ fn get_map_str(filepath: String) -> String
         println!("Error reading file: {}", filepath.clone());
         process::exit(1);
     }
-    contents
+    // accept Windows line endings (CRLF)
+    contents.replace('\r', "")
 }
 
 fn fill_map(grid: &mut Vec<Vec<char>>, map: &str, _width: usize, _height: usize)
