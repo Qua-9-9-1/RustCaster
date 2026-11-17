@@ -1,10 +1,10 @@
 # Build the game in Docker (cross-compiled to Windows) then run it natively.
-# Usage: .\run.ps1                    (runs maps\data.txt)
-#        .\run.ps1 maps\map1.txt      (map path relative to rustcaster/)
+# Usage: .\run.ps1                    (opens the menu)
+#        .\run.ps1 maps\map1.txt      (plays a map directly, path relative to rustcaster/)
 #        .\run.ps1 -Build             (build only)
 
 param(
-    [string]$Map = "maps\data.txt",
+    [string]$Map = "",
     [switch]$Build
 )
 
@@ -24,7 +24,9 @@ if ($Build) { exit 0 }
 
 Push-Location $project
 try {
-    & ".\target\x86_64-pc-windows-gnu\debug\rustcaster.exe" $Map
+    # the game finds assets/ and maps/ from the current dir (rustcaster/) or from the exe location
+    $exe = ".\target\x86_64-pc-windows-gnu\debug\rustcaster.exe"
+    if ($Map) { & $exe $Map } else { & $exe }
     exit $LASTEXITCODE
 } finally {
     Pop-Location
