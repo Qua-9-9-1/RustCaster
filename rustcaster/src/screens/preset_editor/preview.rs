@@ -76,8 +76,9 @@ fn shade(p: u32, factor: f64) -> u32 {
 /// Distance effect: darkening indoors, fog towards the sky colour outside.
 fn apply_distance(p: u32, z: f64, preset: &Preset) -> u32 {
     if preset.outside {
-        if preset.fog {
-            let t = (z / FOG_DIST).min(1.0) * FOG_MAX;
+        let fog = preset.fog_amount();
+        if fog > 0.0 {
+            let t = (fog * z / FOG_DIST).min(1.0) * FOG_MAX;
             return Color::from_u32(p | 0xFF00_0000).lerp(preset.colors.sky, t).to_u32();
         }
         p | 0xFF00_0000
@@ -103,11 +104,12 @@ fn sky_pixel(preset: &Preset, cam: &Cam, x: i32, y: i32, time: f64) -> u32 {
     // flat sky with a sun and two clouds, like the flat renderer
     let (px, py) = (x as f64, y as f64);
     let sun = (r.x as f64 + r.w as f64 * 0.78, r.y as f64 + r.h as f64 * 0.14, r.h as f64 * 0.06);
-    if (px - sun.0).powi(2) + (py - sun.1).powi(2) < sun.2 * sun.2 {
+    if preset.sun && (px - sun.0).powi(2) + (py - sun.1).powi(2) < sun.2 * sun.2 {
         return preset.colors.sun.to_u32();
     }
     let drift = (time * 6.0) % r.w as f64;
-    for (cx, cy, rx, ry) in [(0.2, 0.12, 0.09, 0.03), (0.5, 0.2, 0.07, 0.025)] {
+    let clouds: &[(f64, f64, f64, f64)] = if preset.clouds { &[(0.2, 0.12, 0.09, 0.03), (0.5, 0.2, 0.07, 0.025)] } else { &[] };
+    for &(cx, cy, rx, ry) in clouds {
         let ccx = r.x as f64 + (cx * r.w as f64 + drift) % r.w as f64;
         let dx = (px - ccx) / (rx * r.w as f64);
         let dy = (py - (r.y as f64 + cy * r.h as f64)) / (ry * r.h as f64);
@@ -127,7 +129,9 @@ fn draw_corridor(fb: &mut FrameBuffer, cam: &Cam, area: Rect, preset: &Preset, t
         // wall hit for this column
         let (z, u, side) = if sx.abs() * BACK_DEPTH > HALF_WIDTH {
             let z = HALF_WIDTH / sx.abs();
-            (z, z, true)
+            // seen from inside the corridor, u must grow to the right of the
+            // screen: towards the back on the left wall, towards us on the right one
+            (z, if sx > 0.0 { -z } else { z }, true)
         } else {
             (BACK_DEPTH, sx * BACK_DEPTH + HALF_WIDTH, false)
         };
@@ -136,7 +140,7 @@ fn draw_corridor(fb: &mut FrameBuffer, cam: &Cam, area: Rect, preset: &Preset, t
             let fy = y as f64 + 0.5;
             let p = if fy >= y0 && fy < y1 {
                 let v = (fy - y0) / (y1 - y0);
-                let p = sample_or(tex.wall.as_ref(), u.fract(), v, colors.wall);
+                let p = sample_or(tex.wall.as_ref(), u.rem_euclid(1.0), v, colors.wall);
                 let p = if side { shade(p, SIDE_SHADE) } else { p };
                 apply_distance(p, z, preset)
             } else if fy >= y1 {
@@ -182,14 +186,8 @@ fn draw_grid(fb: &mut FrameBuffer, cam: &Cam, preset: &Preset) {
     let (top, bottom) = cam.span(GRID_DEPTH, 1.0);
     let r = Rect::new(x0, top as i32, x1 - x0, (bottom - top) as i32);
     match preset.textures.grid.as_ref() {
-        Some(t) => {
-            // the face is (GRID_X.1 - GRID_X.0) tiles wide: tile the texture horizontally
-            let tiles = ((GRID_X.1 - GRID_X.0) * 2.0).round().max(1.0) as i32;
-            for (i, cell) in crate::ui::widgets::row(r, 0, tiles as usize).into_iter().enumerate() {
-                let cell = if i as i32 == tiles - 1 { Rect::new(cell.x, cell.y, r.right() - cell.x, cell.h) } else { cell };
-                fb.blit_texture(t, cell);
-            }
-        }
+        // one block face = one texture, as in game
+        Some(t) => fb.blit_texture(t, r),
         None => {
             let c = preset.colors.grid;
             let step = (r.h / 6).max(2);

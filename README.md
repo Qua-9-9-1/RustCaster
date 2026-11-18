@@ -41,7 +41,8 @@ Code layout: see [ARCHITECTURE.md](ARCHITECTURE.md).
 From the menu, open the preset editor: give your preset a name, pick a base preset ("Start from"),
 then import your own images (PNG, JPG, BMP, GIF, TGA) for the wall, floor, ceiling, grid, coin,
 end flag and sky. Images are scaled down to 256 px; grid, coin and end keep their transparency.
-Click a card to tweak its flat colour, toggle Outside / Fog, check the live preview and Save.
+Click a card to tweak its flat colour, toggle Outside / Fog, set the fog strength (`-` / `+`),
+turn the sun and clouds on or off ("Sky extras" card), check the live preview and Save.
 
 User presets are saved in `rustcaster/presets/<name>/` (PNG files + `preset.json`) and appear in the
 preset list. Built-in presets (`rustcaster/assets/presets/`) are never overwritten; your own presets can
@@ -49,7 +50,9 @@ be edited again or deleted from the editor.
 
 ## Maps
 
-Maps are in txt format
+Maps are in txt format: every `.txt` file of `rustcaster/maps/` (the `maps/` folder next to the
+executable in the release archives) appears in the level list. See `maps/README.md` and
+`maps/example.txt`.
 
 Player position     : 'P'
 Walls               : '#'

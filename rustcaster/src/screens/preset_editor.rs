@@ -19,7 +19,7 @@ use std::time::Instant;
 use sdl2::keyboard::Scancode;
 
 use crate::app::{AppContext, AppState, Transition};
-use crate::assets::preset::{Preset, PresetColors, TextureSlot};
+use crate::assets::preset::{Preset, PresetColors, TextureSlot, FOG_STRENGTH_MIN, FOG_STRENGTH_STEP};
 use crate::config::DEFAULT_PRESET;
 use crate::input::{Input, Mouse};
 use crate::render::color::Color;
@@ -191,6 +191,8 @@ struct Layout {
     extras: Rect,
     sun: Rect,
     clouds: Rect,
+    sun_toggle: Button,
+    clouds_toggle: Button,
     color_panel: Rect,
     from_texture: Button,
     channels: Vec<Channel>,
@@ -198,6 +200,9 @@ struct Layout {
     palette: Vec<Rect>,
     outside: Button,
     fog: Button,
+    fog_less: Button,
+    fog_value: Rect,
+    fog_more: Button,
     preview: Rect,
     hints_y: i32,
     message_y: i32,
@@ -365,8 +370,16 @@ impl PresetEditorScreen {
             .collect();
         let extras = cell(TextureSlot::ALL.len());
         let sw = Rect::new(extras.x + 4, extras.y + 16, extras.w - 8, (CARD_H - 16 - 4 - 4) / 2);
-        let sun = sw;
-        let clouds = Rect::new(sw.x, sw.bottom() + 4, sw.w, sw.h);
+        // each swatch shares its row with an on/off toggle
+        let toggle_w = 32;
+        let swatch_w = sw.w - toggle_w - 4;
+        let sun = Rect::new(sw.x, sw.y, swatch_w, sw.h);
+        let clouds = Rect::new(sw.x, sw.bottom() + 4, swatch_w, sw.h);
+        let toggle = |r: Rect, on: bool| {
+            Button::new(on_off(on), Rect::new(r.right() + 4, r.y, toggle_w, r.h), TEXT_SCALE).enabled(self.preset.outside)
+        };
+        let sun_toggle = toggle(sun, self.preset.sun);
+        let clouds_toggle = toggle(clouds, self.preset.clouds);
 
         // colour panel
         let color_panel = Rect::new(lx, cell(CARD_COLUMNS).bottom() + GAP + 2, left_w, COLOR_PANEL_H);
@@ -393,9 +406,17 @@ impl PresetEditorScreen {
         let palette = row(palette_row, 3, PALETTE.len());
 
         // right column: flags + preview
-        let flags = row(Rect::new(rx, name_field.y, rw, ROW_H), GAP, 2);
+        let flags = row(Rect::new(rx, name_field.y, rw, ROW_H), GAP, 3);
         let outside = Button::new(format!("Outside: {}", on_off(self.preset.outside)), flags[0], TEXT_SCALE);
         let fog = Button::new(format!("Fog: {}", on_off(self.preset.fog)), flags[1], TEXT_SCALE).enabled(self.preset.outside);
+        // fog strength: [-] value [+]
+        let s = flags[2];
+        let fog_on = self.preset.outside && self.preset.fog;
+        let fog_less = Button::new("-", Rect::new(s.x, s.y, ROW_H, ROW_H), TEXT_SCALE)
+            .enabled(fog_on && self.preset.fog_strength > FOG_STRENGTH_MIN + 1e-6);
+        let fog_more = Button::new("+", Rect::new(s.right() - ROW_H, s.y, ROW_H, ROW_H), TEXT_SCALE)
+            .enabled(fog_on && self.preset.fog_strength < 1.0 - 1e-6);
+        let fog_value = Rect::new(fog_less.rect.right() + 2, s.y, fog_more.rect.x - 2 - fog_less.rect.right() - 2, ROW_H);
         let preview_y = base_box.y;
         let preview_h = (rw * 3 / 4).min(color_panel.bottom() - preview_y - 40).max(40);
         let preview = Rect::new(rx, preview_y, rw, preview_h);
@@ -422,6 +443,8 @@ impl PresetEditorScreen {
             extras,
             sun,
             clouds,
+            sun_toggle,
+            clouds_toggle,
             color_panel,
             from_texture,
             channels,
@@ -429,6 +452,9 @@ impl PresetEditorScreen {
             palette,
             outside,
             fog,
+            fog_less,
+            fog_value,
+            fog_more,
             preview,
             hints_y: preview.bottom() + 6,
             message_y: bar_y - 8 - 8,
@@ -499,6 +525,29 @@ impl PresetEditorScreen {
         }
         if l.fog.clicked(input) {
             self.preset.fog = !self.preset.fog;
+            self.changed();
+        }
+        for (button, delta) in [(&l.fog_less, -FOG_STRENGTH_STEP), (&l.fog_more, FOG_STRENGTH_STEP)] {
+            if button.clicked(input) {
+                // stay on the 0.1 grid
+                let s = ((self.preset.fog_strength + delta) * 10.0).round() / 10.0;
+                self.preset.fog_strength = s.clamp(FOG_STRENGTH_MIN, 1.0);
+                self.changed();
+            }
+        }
+        if l.fog_value.contains(mx, my) && input.wheel() != 0 && self.preset.outside && self.preset.fog {
+            let s = ((self.preset.fog_strength + input.wheel() as f64 * FOG_STRENGTH_STEP) * 10.0).round() / 10.0;
+            self.preset.fog_strength = s.clamp(FOG_STRENGTH_MIN, 1.0);
+            self.changed();
+        }
+        if l.sun_toggle.clicked(input) {
+            self.preset.sun = !self.preset.sun;
+            self.selected = ColorTarget::Sun;
+            self.changed();
+        }
+        if l.clouds_toggle.clicked(input) {
+            self.preset.clouds = !self.preset.clouds;
+            self.selected = ColorTarget::Clouds;
             self.changed();
         }
 
@@ -729,12 +778,18 @@ impl PresetEditorScreen {
         for card in &l.cards {
             self.draw_card(ctx, fb, input, card);
         }
-        self.draw_extras(fb, &l);
+        self.draw_extras(fb, input, &l);
         self.draw_color_panel(fb, input, &l);
 
         // flags + preview
         l.outside.draw(fb, input);
         l.fog.draw(fb, input);
+        l.fog_less.draw(fb, input);
+        l.fog_more.draw(fb, input);
+        fb.fill_rect(l.fog_value, FIELD_COLORS.background);
+        let strength = format!("{}%", (self.preset.fog_strength * 100.0).round() as i32);
+        let fog_on = self.preset.outside && self.preset.fog;
+        draw_text_centered(fb, &fit_text(&strength, l.fog_value.w - 2), l.fog_value, TEXT_SCALE, if fog_on { TEXT } else { TEXT_DIM });
         preview::draw_preview(fb, l.preview, &self.preset, time);
         fb.draw_rect(l.preview.inset(-1), PREVIEW_BORDER);
         let hints = [
@@ -816,7 +871,7 @@ impl PresetEditorScreen {
         card.clear.draw(fb, input);
     }
 
-    fn draw_extras(&self, fb: &mut FrameBuffer, l: &Layout) {
+    fn draw_extras(&self, fb: &mut FrameBuffer, input: &Input, l: &Layout) {
         fb.fill_rect(l.extras, CARD_BG);
         let selected = matches!(self.selected, ColorTarget::Sun | ColorTarget::Clouds);
         fb.draw_rect(l.extras, if selected { SELECTED_BORDER } else { CARD_BORDER });
@@ -827,6 +882,8 @@ impl PresetEditorScreen {
             fb.draw_rect(rect, if self.selected == target { SELECTED_BORDER } else { CARD_BORDER });
             draw_text_centered(fb, target.label(), rect, TEXT_SCALE, contrast(c));
         }
+        l.sun_toggle.draw(fb, input);
+        l.clouds_toggle.draw(fb, input);
     }
 
     fn draw_color_panel(&self, fb: &mut FrameBuffer, input: &Input, l: &Layout) {

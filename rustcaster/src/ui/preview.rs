@@ -64,10 +64,10 @@ pub fn draw_preset_preview(fb: &mut FrameBuffer, preset: &Preset, rect: Rect) {
             None => gradient(fb, top, c.sky.scale(0.8), c.sky),
         }
         let r = (rect.h / 12).max(2);
-        if c.sun != c.sky {
+        if preset.sun && c.sun != c.sky {
             fb.fill_circle(rect.x + rect.w * 3 / 4, rect.y + top.h / 3, r, c.sun);
         }
-        if c.clouds != c.sky {
+        if preset.clouds && c.clouds != c.sky {
             let (x, y) = (rect.x + rect.w / 5, rect.y + top.h / 4);
             fb.fill_circle(x, y, r, c.clouds);
             fb.fill_circle(x + r, y - r / 3, r, c.clouds);
@@ -97,8 +97,9 @@ pub fn draw_preset_preview(fb: &mut FrameBuffer, preset: &Preset, rect: Rect) {
         Some(t) => tile_texture(fb, t, wall, wall.h / 2, wall.h / 2),
         None => fb.fill_rect(wall, c.wall),
     }
-    if preset.fog {
-        fb.fill_rect(wall, c.sky.with_alpha(70));
+    let fog = preset.fog_amount();
+    if fog > 0.0 {
+        fb.fill_rect(wall, c.sky.with_alpha((70.0 * fog).round() as u8));
     }
     fb.draw_rect(wall, Color::rgba(0, 0, 0, 90));
     // floor shadow under the wall

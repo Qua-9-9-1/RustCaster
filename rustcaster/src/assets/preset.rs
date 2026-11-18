@@ -153,8 +153,26 @@ pub struct PresetFile {
     pub outside: bool,
     #[serde(default)]
     pub fog: bool,
+    #[serde(default = "default_fog_strength")]
+    pub fog_strength: f64,
+    #[serde(default = "default_true")]
+    pub sun: bool,
+    #[serde(default = "default_true")]
+    pub clouds: bool,
     #[serde(default)]
     pub colors: PresetColors,
+}
+
+/// Fog strength range and step of the preset editor.
+pub const FOG_STRENGTH_MIN: f64 = 0.1;
+pub const FOG_STRENGTH_STEP: f64 = 0.1;
+
+fn default_fog_strength() -> f64 {
+    1.0
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Clone, Debug)]
@@ -165,6 +183,11 @@ pub struct Preset {
     pub outside: bool,
     /// Distance fog towards the sky colour (only meaningful when `outside`).
     pub fog: bool,
+    /// How thick the fog is, in `[FOG_STRENGTH_MIN, 1]` (1 = historical fog).
+    pub fog_strength: f64,
+    /// Draw the sun / the clouds in the sky (outdoor presets).
+    pub sun: bool,
+    pub clouds: bool,
     pub textures: PresetTextures,
     /// Folder the preset was loaded from, if any.
     pub dir: Option<PathBuf>,
@@ -175,6 +198,7 @@ impl Preset {
     pub fn builtin(name: &str) -> Preset {
         let c = Color::rgb;
         let mut colors = PresetColors::default();
+        let (mut fog_strength, mut sun, mut clouds) = (1.0, true, true);
         let (outside, fog) = match name {
             "house" => {
                 colors.sky = c(38, 98, 199);
@@ -199,12 +223,14 @@ impl Preset {
                 (true, false)
             }
             "halloween" => {
-                colors.sky = c(170, 120, 20);
-                colors.clouds = c(150, 140, 40);
+                colors.sky = c(196, 104, 22);
+                colors.clouds = c(165, 115, 50);
                 colors.sun = c(115, 65, 0);
                 colors.floor = c(20, 20, 28);
                 colors.wall = c(76, 44, 100);
-                (true, false)
+                // very light haze
+                fog_strength = 0.25;
+                (true, true)
             }
             "night" => {
                 colors.sky = c(12, 20, 69);
@@ -218,6 +244,9 @@ impl Preset {
                 colors.sky = c(172, 32, 32);
                 colors.floor = c(48, 24, 28);
                 colors.wall = c(116, 52, 52);
+                // no sun nor clouds under the nether sky
+                sun = false;
+                clouds = false;
                 (true, true)
             }
             "retro" => {
@@ -240,7 +269,26 @@ impl Preset {
         };
         // indoors, the old renderer painted the ceiling with the sky colour
         colors.ceiling = colors.sky;
-        Preset { name: name.to_string(), colors, outside, fog, textures: PresetTextures::default(), dir: None }
+        Preset {
+            name: name.to_string(),
+            colors,
+            outside,
+            fog,
+            fog_strength,
+            sun,
+            clouds,
+            textures: PresetTextures::default(),
+            dir: None,
+        }
+    }
+
+    /// Fog amount actually rendered: 0 without fog (or indoors), else the strength.
+    pub fn fog_amount(&self) -> f64 {
+        if self.outside && self.fog {
+            self.fog_strength.clamp(FOG_STRENGTH_MIN, 1.0)
+        } else {
+            0.0
+        }
     }
 
     /// Loads a preset folder: `preset.json` if present (else built-in colours
@@ -256,6 +304,9 @@ impl Preset {
                     preset.name = meta.name;
                     preset.outside = meta.outside;
                     preset.fog = meta.fog;
+                    preset.fog_strength = meta.fog_strength.clamp(FOG_STRENGTH_MIN, 1.0);
+                    preset.sun = meta.sun;
+                    preset.clouds = meta.clouds;
                     preset.colors = meta.colors;
                 }
                 Err(e) => eprintln!("Warning: {}: {}", meta_path.display(), e),
@@ -278,7 +329,15 @@ impl Preset {
     }
 
     pub fn to_file(&self) -> PresetFile {
-        PresetFile { name: self.name.clone(), outside: self.outside, fog: self.fog, colors: self.colors }
+        PresetFile {
+            name: self.name.clone(),
+            outside: self.outside,
+            fog: self.fog,
+            fog_strength: self.fog_strength,
+            sun: self.sun,
+            clouds: self.clouds,
+            colors: self.colors,
+        }
     }
 
     /// Writes `preset.json` and every present texture (as PNG) into `dir`,

@@ -300,8 +300,9 @@ impl Raycaster {
 /// with fog they fade to the sky colour, outside without fog they stay flat.
 pub fn distance_shade(color: Color, dist: f64, preset: &Preset) -> Color {
     if preset.outside {
-        if preset.fog {
-            color.lerp(preset.colors.sky, dist / FOG_DISTANCE)
+        let fog = preset.fog_amount();
+        if fog > 0.0 {
+            color.lerp(preset.colors.sky, (fog * dist / FOG_DISTANCE).min(1.0))
         } else {
             color
         }
@@ -328,7 +329,7 @@ impl WorldRenderer for FlatRenderer {
         let top = if p.outside { p.colors.sky } else { p.colors.ceiling };
         fb.fill_rect(Rect::new(0, 0, w, horizon), top);
         fb.fill_rect(Rect::new(0, horizon, w, h - horizon), p.colors.floor);
-        if p.outside && !p.fog {
+        if p.outside && p.sun && p.fog_amount() < 0.5 {
             if let Some(sx) = view.camera.project_angle(SUN_ANGLE) {
                 let r = (h as f64 * 0.1) as i32;
                 fb.fill_circle(sx as i32, (h as f64 * 0.15) as i32, r, SUN_COLOR);

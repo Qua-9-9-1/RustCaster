@@ -107,19 +107,20 @@ impl ShadeOp {
 /// Same curve as the flat renderer but continuous instead of stepped.
 #[derive(Default)]
 struct Shading {
-    key: Option<(bool, bool, Color)>,
+    key: Option<(bool, u64, Color)>,
     lut: Vec<ShadeOp>,
 }
 
 impl Shading {
     fn update(&mut self, preset: &Preset) {
-        let key = (preset.outside, preset.fog, preset.colors.sky);
+        let amount = preset.fog_amount();
+        let key = (preset.outside, amount.to_bits(), preset.colors.sky);
         if self.key == Some(key) {
             return;
         }
         self.key = Some(key);
         self.lut.clear();
-        let fog = preset.outside && preset.fog;
+        let fog = amount > 0.0;
         let sky = if fog { preset.colors.sky.to_u32() } else { 0 };
         for side in [256, SIDE_SHADE] {
             for i in 0..LUT_LEN {
@@ -127,7 +128,7 @@ impl Shading {
                 let f = if !preset.outside {
                     SHADE_FACTOR.powf(d / SHADE_STEP)
                 } else if fog {
-                    1.0 - d / FOG_DISTANCE
+                    1.0 - amount * d / FOG_DISTANCE
                 } else {
                     1.0
                 };
@@ -562,20 +563,21 @@ impl TexturedRenderer {
         }
 
         let sky = p.colors.sky;
-        // lighter towards the horizon; with fog the horizon is exactly the fog colour
-        let (top, bottom) = if p.fog { (sky.scale(0.85), sky) } else { (sky.scale(0.8), sky.lerp(Color::WHITE, 0.3)) };
+        // lighter towards the horizon; with full fog the horizon is exactly the fog colour
+        let fog = p.fog_amount();
+        let (top, bottom) = (sky.scale(0.8 + 0.05 * fog), sky.lerp(Color::WHITE, 0.3 * (1.0 - fog)));
         for y in 0..rows {
             let c = top.lerp(bottom, (y as f64 + 0.5) / rows as f64).to_u32() | OPAQUE;
             px[y * w..(y + 1) * w].fill(c);
         }
 
         self.sky_art.update(&p.colors, view.common);
-        let alpha = if p.fog { SKY_FOG_ALPHA } else { 255 };
-        if let Some(sun) = &self.sky_art.sun {
+        let alpha = (255.0 - (255.0 - SKY_FOG_ALPHA as f64) * fog).round() as u8;
+        if let (true, Some(sun)) = (p.sun, &self.sky_art.sun) {
             draw_sky_object(px, w, rows, cam, &self.col_angle, sun, SUN_ANGLE, SUN_ELEVATION, SUN_SIZE, alpha);
         }
         let clouds = &self.sky_art.clouds;
-        if !clouds.is_empty() {
+        if p.clouds && !clouds.is_empty() {
             for c in CLOUDS.iter() {
                 let angle = c.angle + view.time * c.speed;
                 draw_sky_object(px, w, rows, cam, &self.col_angle, &clouds[c.texture % clouds.len()], angle, c.elevation, c.width, alpha);
